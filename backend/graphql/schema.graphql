@@ -20,6 +20,7 @@ enum Diagram {
   FREEFORM
   USE_CASE_DIAGRAM
   KEYBOARD_LAYOUT
+  HYPOTHESIS_CANVAS
 }
 
 interface Node {

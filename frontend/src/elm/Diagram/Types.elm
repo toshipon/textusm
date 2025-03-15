@@ -52,6 +52,7 @@ import Diagram.Types.Type exposing (DiagramType(..))
 import Diagram.UseCaseDiagram.Types as UseCaseDiagramModel
 import Diagram.UserPersona.Types as UserPersonaModel
 import Diagram.UserStoryMap.Types as UserStoryMapModel
+import Diagram.HypothesisCanvas.Types as HypothesisCanvasModel
 import Events
 import Events.Wheel as Wheel
 import File exposing (File)
@@ -324,6 +325,9 @@ size model =
 
         ( OpportunityCanvas, _ ) ->
             OpportunityCanvasModel.size model.settings model.items
+            
+        ( HypothesisCanvas, _ ) ->
+            HypothesisCanvasModel.size model.settings model.items
 
         ( BusinessModelCanvas, _ ) ->
             BusinessModelCanvasModel.size model.settings model.items

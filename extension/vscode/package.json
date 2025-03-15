@@ -134,8 +134,8 @@
         },
         "textusm.backgroundColor": {
           "type": "string",
-          "default": "transparent",
-          "markdownDescription": "background color for diagram."
+          "default": "#F4F4F5",
+          "markdownDescription": "Background color for diagram."
         },
         "textusm.activity.color": {
           "type": "string",

@@ -7,6 +7,7 @@ import Diagram.EmpathyMap.Types as EmpathyMapModel
 import Diagram.FourLs.Types as FourLsModel
 import Diagram.FreeForm.Types as FreeFormModel
 import Diagram.GanttChart.Types as GanttChartModel
+import Diagram.HypothesisCanvas.Types as HypothesisCanvasModel
 import Diagram.Kanban.Types as KanbanModel
 import Diagram.KeyboardLayout.Types as KeyboardLayout
 import Diagram.KeyboardLayout.View as KeyboardLayout
@@ -673,6 +674,9 @@ updateData text data items =
         DiagramData.BusinessModelCanvas _ ->
             DiagramData.BusinessModelCanvas <| BusinessModelCanvasModel.from items
 
+        DiagramData.HypothesisCanvas _ ->
+            DiagramData.HypothesisCanvas <| HypothesisCanvasModel.from items
+
         DiagramData.EmpathyMap _ ->
             DiagramData.EmpathyMap <| EmpathyMapModel.from items
 
@@ -718,6 +722,9 @@ updateDiagram size base text =
 
                 BusinessModelCanvas ->
                     DiagramData.BusinessModelCanvas <| BusinessModelCanvasModel.from items
+
+                HypothesisCanvas ->
+                    DiagramData.HypothesisCanvas <| HypothesisCanvasModel.from items
 
                 Fourls ->
                     DiagramData.FourLs <| FourLsModel.from items

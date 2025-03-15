@@ -34,6 +34,7 @@ type DiagramType
     | Freeform
     | UseCaseDiagram
     | KeyboardLayout
+    | HypothesisCanvas
 
 
 defaultText : DiagramType -> String
@@ -44,6 +45,9 @@ defaultText diagram =
 
         BusinessModelCanvas ->
             "👥 Key Partners\n📊 Customer Segments\n🎁 Value Proposition\n✅ Key Activities\n🚚 Channels\n💰 Revenue Streams\n🏷️ Cost Structure\n💪 Key Resources\n💙 Customer Relationships"
+
+        HypothesisCanvas ->
+            "🎯 目的\n    われわれはなぜこの事業をやるのか？\n🔭 ビジョン\n    中長期的に顧客にどういう状況になってもらいたいか？\n🔧 実現手段\n    提案価値を実現するために必要な手段は何か\n💪 優位性\n    提案価値や実現手段の提供に貢献するリソース\n📊 指標（撤退ライン）\n    少なくとも最低限達成すべき指標\n💎 提案価値\n    われわれは顧客をどんな解決状態にするのか\n❗ 顕在課題\n    顧客が気づいている課題は何か\n❓ 潜在課題\n    顧客が気づいていない課題、解決を諦めている課題\n🔄 代替手段\n    課題を解決するために顧客が現状取っている手段\n👥 状況\n    どのような状況にある顧客が対象なのか\n🚚 チャネル\n    状況に挙げた人たちに出会うための手段\n📈 傾向\n    同じ状況にある人が一致して行う事はあるか\n💰 収益モデル\n    どうやって儲けるのか？\n🌐 市場規模\n    対象の市場となる規模感は？"
 
         OpportunityCanvas ->
             "Problems\nSolution Ideas\nUsers and Customers\nSolutions Today\nBusiness Challenges\nHow will Users use Solution?\nUser Metrics\nAdoption Strategy\nBusiness Benefits and Metrics\nBudget"
@@ -157,6 +161,9 @@ fromGraphqlValue diagram =
         Diagram.KeyboardLayout ->
             KeyboardLayout
 
+        Diagram.HypothesisCanvas ->
+            HypothesisCanvas
+
 
 fromString : String -> DiagramType
 fromString s =
@@ -166,6 +173,9 @@ fromString s =
 
         "bmc" ->
             BusinessModelCanvas
+
+        "hyp" ->
+            HypothesisCanvas
 
         "emm" ->
             EmpathyMap
@@ -230,6 +240,9 @@ toDiagram s =
 
         "bmc" ->
             Just BusinessModelCanvas
+
+        "hyp" ->
+            Just HypothesisCanvas
 
         "emm" ->
             Just EmpathyMap
@@ -298,6 +311,9 @@ toGraphqlValue diagramType =
         BusinessModelCanvas ->
             Diagram.BusinessModelCanvas
 
+        HypothesisCanvas ->
+            Diagram.HypothesisCanvas
+
         Fourls ->
             Diagram.Fourls
 
@@ -358,6 +374,9 @@ toLongString diagramType =
 
         BusinessModelCanvas ->
             "Business Model Canvas"
+
+        HypothesisCanvas ->
+            "Hypothesis Canvas"
 
         Fourls ->
             "4Ls"
@@ -420,6 +439,9 @@ toString diagramType =
         BusinessModelCanvas ->
             "bmc"
 
+        HypothesisCanvas ->
+            "hyp"
+
         Fourls ->
             "4ls"
 
@@ -481,6 +503,9 @@ toTypeString diagramType =
         BusinessModelCanvas ->
             "BusinessModelCanvas"
 
+        HypothesisCanvas ->
+            "HypothesisCanvas"
+
         Fourls ->
             "Fourls"
 
@@ -535,6 +560,9 @@ fromTypeString s =
     case s of
         "BusinessModelCanvas" ->
             BusinessModelCanvas
+
+        "HypothesisCanvas" ->
+            HypothesisCanvas
 
         "OpportunityCanvas" ->
             OpportunityCanvas

@@ -10,6 +10,7 @@ import Diagram.EmpathyMap.View as EmpathyMap
 import Diagram.FourLs.View as FourLs
 import Diagram.FreeForm.View as FreeForm
 import Diagram.GanttChart.View as GanttChart
+import Diagram.HypothesisCanvas.View as HypothesisCanvas
 import Diagram.Kanban.View as Kanban
 import Diagram.KeyboardLayout.Types as KeyboardLayout
 import Diagram.KeyboardLayout.View as KeyboardLayout
@@ -145,6 +146,9 @@ view model =
                     Lazy.lazy Toolbar.viewColorOnly ToolbarClick
 
                 BusinessModelCanvas ->
+                    Lazy.lazy Toolbar.viewColorOnly ToolbarClick
+                    
+                HypothesisCanvas ->
                     Lazy.lazy Toolbar.viewColorOnly ToolbarClick
 
                 Fourls ->
@@ -446,6 +450,19 @@ diagramView diagramType model =
                 , onEditSelectedItem = EditSelectedItem
                 , onEndEditSelectedItem = EndEditSelectedItem
                 , onSelect = Select
+                }
+                
+        HypothesisCanvas ->
+            HypothesisCanvas.view
+                { items = model.items
+                , data = model.data
+                , settings = model.settings
+                , selectedItem = model.selectedItem
+                , property = model.property
+                , onEditSelectedItem = EditSelectedItem
+                , onEndEditSelectedItem = EndEditSelectedItem
+                , onSelect = Select
+                , dragStart = dragStart
                 }
 
 

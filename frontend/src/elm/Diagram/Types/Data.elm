@@ -6,6 +6,7 @@ import Diagram.EmpathyMap.Types exposing (EmpathyMap)
 import Diagram.FourLs.Types exposing (FourLs)
 import Diagram.FreeForm.Types exposing (FreeForm)
 import Diagram.GanttChart.Types exposing (GanttChart)
+import Diagram.HypothesisCanvas.Types exposing (HypothesisCanvas)
 import Diagram.Kanban.Types exposing (Kanban)
 import Diagram.KeyboardLayout.Types exposing (KeyboardLayout)
 import Diagram.Kpt.Types exposing (Kpt)
@@ -29,6 +30,7 @@ type Data
     | FourLs FourLs
     | Kanban Kanban
     | BusinessModelCanvas BusinessModelCanvas
+    | HypothesisCanvas HypothesisCanvas
     | EmpathyMap EmpathyMap
     | OpportunityCanvas OpportunityCanvas
     | UserPersona UserPersona

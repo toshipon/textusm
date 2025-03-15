@@ -27,6 +27,7 @@ type Diagram
     | Freeform
     | UseCaseDiagram
     | KeyboardLayout
+    | HypothesisCanvas
 
 
 list : List Diagram
@@ -163,6 +164,9 @@ toString enum____ =
 
         KeyboardLayout ->
             "KEYBOARD_LAYOUT"
+
+        HypothesisCanvas ->
+            "HYPOTHESIS_CANVAS"
 
 
 {-| Convert from a String representation to an elm representation enum.
