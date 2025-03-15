@@ -9,7 +9,7 @@ export const diagrams: ReadonlyArray<{ label: string; value: DiagramType }> = [
   { label: "Site Map", value: "smp" },
   { label: "Business Model Canvas", value: "bmc" },
   { label: "Opportunity Canvas", value: "opc" },
-  { label: "Hypothesis Canvas", value: "hpc" },
+  { label: "Hypothesis Canvas", value: "hyp" },
   { label: "User Persona", value: "persona" },
   { label: "Gantt Chart", value: "gct" },
   { label: "ER Diagram", value: "erd" },
@@ -35,7 +35,7 @@ export const ENABLED_LANG_DIAGRAM_TYPE: { [v in DiagramType]: DiagramType } = {
   erd: "usm",
   gct: "usm",
   opc: "opc", // "usm" から "opc" に変更
-  hpc: "hpc", // "usm" から "hpc" に変更
+  hyp: "hyp", // "usm" から "hyp" に変更
   "4ls": "4ls", // "usm" から "4ls" に変更
   ssc: "usm",
   kpt: "usm",
@@ -58,7 +58,7 @@ export const DIAGRAM_TYPE_TO_ELM_TYPE: { [key in DiagramType]: string } = {
   erd: "ER",
   gct: "GanttChart",
   opc: "OpportunityCanvas",
-  hpc: "HypothesisCanvas", // ここが重要! "hpc" → "HypothesisCanvas"
+  hyp: "HypothesisCanvas", // ここが重要! "hyp" → "HypothesisCanvas"
   "4ls": "4Ls",
   ssc: "StartStopContinue",
   kpt: "Kpt",

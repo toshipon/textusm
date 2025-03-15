@@ -18,4 +18,4 @@ export type DiagramType =
   | "free"
   | "kbd"
   | "ucd"
-  | "hpc";
+  | "hyp";

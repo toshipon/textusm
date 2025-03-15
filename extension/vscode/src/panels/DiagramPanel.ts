@@ -463,9 +463,7 @@ export class DiagramPanel {
                     textColor: "${textColor}",
                     labelColor: "${labelColor}",
                     lineColor: "${lineColor}",
-                    diagramType: "${
-                      DIAGRAM_TYPE_TO_ELM_TYPE[diagramType as DiagramType]
-                    }",
+                    diagramType: "${diagramType}",
                     cardWidth: ${cardWidth},
                     cardHeight: ${cardHeight},
                     toolbar: ${toolbar},
