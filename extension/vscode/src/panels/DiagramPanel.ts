@@ -38,7 +38,7 @@ export class DiagramPanel {
   }
 
   private async sendTextUpdate(text: string) {
-    await this.ensurePanelActive();
+    // await this.ensurePanelActive();
     
     console.log("Sending text update to WebView", {
       textLength: text.length,
@@ -252,8 +252,8 @@ export class DiagramPanel {
             // テキストが変更されたかどうかに関わらず、常に更新を送信
             this.lastText = text;
             
-            console.log("Ensuring panel is active before sending update");
-            await this.ensurePanelActive();
+            // console.log("Ensuring panel is active before sending update");
+            // await this.ensurePanelActive();
             
             console.log("Sending text update after change");
             await this.sendTextUpdate(text);
@@ -371,8 +371,8 @@ export class DiagramPanel {
       
       this.lastText = text;
       
-      console.log("Ensuring panel is active before sending update in updatePanelContent");
-      await this.ensurePanelActive();
+      // console.log("Ensuring panel is active before sending update in updatePanelContent");
+      // await this.ensurePanelActive();
       
       console.log("Sending text update in updatePanelContent");
       await this.sendTextUpdate(text);
