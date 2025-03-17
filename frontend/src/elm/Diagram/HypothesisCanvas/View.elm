@@ -79,7 +79,7 @@ view { data, settings, items, property, selectedItem, onEditSelectedItem, onEndE
 
                 itemHeight : Int
                 itemHeight =
-                    Basics.max Constants.itemHeight <| Utils.getCanvasHeight settings items
+                    Utils.getCanvasHeight settings items
 
                 halfWidth : Int
                 halfWidth =
