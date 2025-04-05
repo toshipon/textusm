@@ -46,6 +46,15 @@ TextUSM is a simple tool. Help you draw user story map using indented text.
 - [cli](https://www.npmjs.com/package/textusm.cli)
 - [npm](https://www.npmjs.com/package/textusm)
 
+### VS Code Extension Features
+
+The VS Code extension includes the following features:
+
+- **Hypothesis Canvas Collaboration with LLM:** Engage in interactive sessions with LLMs (Gemini, Claude, GitHub Copilot, OpenAI) to refine your Hypothesis Canvas.
+- **LLM API Key Configuration:** A dedicated settings screen to configure API keys for the supported LLMs.
+- **Chat-based Canvas Creation:** Utilize a chat interface, similar to GitHub Copilot Chat, to collaboratively build your Hypothesis Canvas. Conversation results are directly reflected in the markdown file.
+- **Canvas Preview Link:** Easily open a preview of your Hypothesis Canvas directly from the chat interface.
+
 ## Usage
 
 ```shell
