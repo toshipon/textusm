@@ -5,6 +5,7 @@ import { diagrams } from "../constants/diagrams";
 import { DiagramType } from "../types/DiagramType";
 import { DiagramPanel } from "../panels/DiagramPanel";
 import { diagramTemplates } from "../constants/templates";
+import { HypothesisCanvasChatPanel } from "../panels/HypothesisCanvasChatPanel";
 
 export const registerCommands = (context: vscode.ExtensionContext) => {
   const commands: [string, (...args: any[]) => any][] = [
@@ -67,6 +68,13 @@ export const registerCommands = (context: vscode.ExtensionContext) => {
 
         quickPick.onDidHide(() => quickPick.dispose());
         quickPick.show();
+      },
+    ],
+    [
+      "textusm.hypothesisCanvas.showChat",
+      () => {
+        console.log("Executing hypothesisCanvas.showChat command");
+        HypothesisCanvasChatPanel.render(context.extensionUri);
       },
     ],
   ];

@@ -116,6 +116,11 @@
         "command": "textusm.zoomOut",
         "title": "TextUSM: ZoomOut",
         "icon": "$(zoom-out)"
+      },
+      {
+        "command": "textusm.hypothesisCanvas.showChat",
+        "title": "TextUSM: Open Hypothesis Canvas Chat",
+        "category": "TextUSM"
       }
     ],
     "configuration": {
@@ -201,6 +206,21 @@
           "type": "boolean",
           "default": false,
           "markdownDescription": "Show grid"
+        },
+        "textusm.hypothesisCanvas.geminiApiKey": {
+          "type": "string",
+          "default": "",
+          "markdownDescription": "API Key for Google Gemini. Required for Hypothesis Canvas feature using Gemini. Store securely."
+        },
+        "textusm.hypothesisCanvas.claudeApiKey": {
+          "type": "string",
+          "default": "",
+          "markdownDescription": "API Key for Anthropic Claude. Required for Hypothesis Canvas feature using Claude. Store securely."
+        },
+        "textusm.hypothesisCanvas.openaiApiKey": {
+          "type": "string",
+          "default": "",
+          "markdownDescription": "API Key for OpenAI. Required for Hypothesis Canvas feature using OpenAI. Store securely."
         }
       }
     }
@@ -216,6 +236,7 @@
     "@types/svgo": "^2.6.4",
     "@types/uuid": "^9.0.8",
     "@types/vscode": "^1.89.0",
+    "@vscode/webview-ui-toolkit": "^1.4.0",
     "clean-webpack-plugin": "^4.0.0",
     "terser-webpack-plugin": "^5.3.10",
     "ts-loader": "^9.5.1",
@@ -232,6 +253,7 @@
     "url": "https://github.com/harehare/textusm.git"
   },
   "dependencies": {
+    "@google/generative-ai": "^0.24.0",
     "svgo": "^3.3.2",
     "uuid": "^9.0.1"
   }
