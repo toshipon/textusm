@@ -1,0 +1,79 @@
+/* Basic styles for the webview */
+body {
+  font-family: var(--vscode-font-family);
+  color: var(--vscode-editor-foreground);
+  background-color: var(--vscode-editor-background);
+  padding: 1em;
+  height: 100vh;
+  box-sizing: border-box;
+  display: flex;
+  flex-direction: column;
+}
+
+#chat-container {
+  display: flex;
+  flex-direction: column;
+  flex-grow: 1;
+  height: 0; /* Needed for flex-grow to work correctly */
+}
+
+#messages {
+  flex-grow: 1;
+  overflow-y: auto;
+  border: 1px solid var(--vscode-sideBar-border);
+  margin-bottom: 1em;
+  padding: 0.5em;
+}
+
+#input-area {
+  display: flex;
+  align-items: flex-end; /* Align items to the bottom */
+}
+
+#message-input {
+  flex-grow: 1;
+  margin-right: 0.5em;
+}
+
+/* Ensure button height adjusts to content */
+vscode-button {
+  height: auto;
+}
+
+.message-container {
+  margin-bottom: 0.8em; /* Add space between messages */
+  padding-bottom: 0.5em; /* Add padding below the text */
+  border-bottom: 1px solid var(--vscode-editorWidget-border); /* Optional separator */
+}
+
+.message-container:last-child {
+  border-bottom: none; /* Remove border for the last message */
+  margin-bottom: 0;
+}
+
+
+p {
+  margin: 0.3em 0;
+  white-space: pre-wrap; /* Preserve whitespace and wrap text */
+}
+
+.action-buttons {
+  margin-top: 0.5em; /* Space between message text and button */
+}
+
+.action-buttons vscode-button {
+  /* Add specific styles for action buttons if needed */
+  /* Example: make them smaller */
+  /* font-size: var(--vscode-font-size); */
+  /* padding: 2px 6px; */
+}
+
+
+.loading {
+  font-style: italic;
+  color: var(--vscode-descriptionForeground);
+}
+
+strong {
+    font-weight: bold;
+}
