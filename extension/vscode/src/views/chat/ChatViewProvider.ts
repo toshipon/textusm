@@ -2,6 +2,7 @@ import * as vscode from "vscode";
 import * as path from "path";
 import { getUri } from "../../utils/getUri";
 import { getNonce } from "../../utils/getNonce";
+import { loadInstructions } from "../../utils/loadInstructions";
 import {
   LlmService,
   LlmType,
@@ -16,12 +17,19 @@ export class ChatViewProvider implements vscode.WebviewViewProvider {
   private _view?: vscode.WebviewView;
   private _syncedDocument?: vscode.TextDocument;
   private readonly _llmService: LlmService;
+  private _instructions: string;
   private readonly _extensionUri: vscode.Uri;
   private _disposables: vscode.Disposable[] = [];
 
   constructor(extensionUri: vscode.Uri) {
     this._extensionUri = extensionUri;
     this._llmService = new LlmService();
+    this._instructions = loadInstructions(vscode.workspace.workspaceFolders?.[0]?.uri.fsPath);
+
+    // ワークスペースの変更を監視
+    vscode.workspace.onDidChangeWorkspaceFolders(() => {
+      this._instructions = loadInstructions(vscode.workspace.workspaceFolders?.[0]?.uri.fsPath);
+    });
   }
 
   // サイドパネルのWebViewを解決
@@ -136,9 +144,9 @@ export class ChatViewProvider implements vscode.WebviewViewProvider {
         <meta name="viewport" content="width=device-width, initial-scale=1.0">
         <link rel="stylesheet" href="${stylesUri}">
       </head>
-      <body>
-        <div id="chat-container">
-          <div id="settings-panel">
+        <body>
+          <div id="chat-container" class="drop-target">
+            <div id="settings-panel">
             <div class="settings-label">LLM Configuration</div>
             <div class="settings-row">
               <vscode-dropdown id="llm-selector">
@@ -171,10 +179,10 @@ export class ChatViewProvider implements vscode.WebviewViewProvider {
             <p>Welcome to Hypothesis Canvas Chat! Select your preferred LLM and enter your API key to get started.</p>
           </div>
           
-          <div id="sync-info">
-            <span id="sync-file">Not synced with any file</span>
-            <vscode-button id="new-file-button" appearance="secondary" style="display: none;">Create New File</vscode-button>
-          </div>
+            <div id="sync-info">
+              <span id="sync-file">ファイルが選択されていません</span>
+              <vscode-button id="new-file-button" appearance="secondary" style="display: none;">新規ファイル作成</vscode-button>
+            </div>
           <div id="input-area">
             <vscode-text-area id="message-input" placeholder="Type your message..." resize="vertical" rows="1"></vscode-text-area>
             <vscode-button id="send-button" appearance="primary">Send</vscode-button>
@@ -182,6 +190,13 @@ export class ChatViewProvider implements vscode.WebviewViewProvider {
         </div>
 
         <script type="module" nonce="${nonce}" src="${toolkitUri}"></script>
+        <style nonce="${nonce}">
+          .drop-target.drag-over {
+            border: 2px dashed var(--vscode-button-background);
+            background-color: var(--vscode-editor-background);
+            opacity: 0.8;
+          }
+        </style>
         <script nonce="${nonce}">
           const vscode = acquireVsCodeApi();
           const sendButton = document.getElementById('send-button');
@@ -195,6 +210,33 @@ export class ChatViewProvider implements vscode.WebviewViewProvider {
           let loadingMessageElement = null;
           let isApiKeyVisible = false;
           let lastCompositionEndTime = 0;
+
+          // ドラッグ&ドロップの実装
+          const chatContainer = document.getElementById('chat-container');
+          
+          chatContainer.addEventListener('dragover', (e) => {
+            e.preventDefault();
+            e.stopPropagation();
+            chatContainer.classList.add('drag-over');
+          });
+
+          chatContainer.addEventListener('dragleave', (e) => {
+            e.preventDefault();
+            e.stopPropagation();
+            chatContainer.classList.remove('drag-over');
+          });
+
+          chatContainer.addEventListener('drop', (e) => {
+            e.preventDefault();
+            e.stopPropagation();
+            chatContainer.classList.remove('drag-over');
+
+            // VS Codeにファイルドロップイベントを送信
+            vscode.postMessage({
+              command: 'fileDropped',
+              uris: Array.from(e.dataTransfer.files).map(file => file.path)
+            });
+          });
 
           // Toggle API key visibility
           toggleApiKeyButton.addEventListener('click', () => {
@@ -322,7 +364,7 @@ export class ChatViewProvider implements vscode.WebviewViewProvider {
                 if (message.syncedFile) {
                   const filename = message.syncedFile.split('/').pop();
                   if (syncFileElement) {
-                    syncFileElement.textContent = '現在のファイル: ' + filename;
+                    syncFileElement.textContent = '編集中のファイル: ' + filename;
                   }
                   
                   if (newFileButton) {
@@ -383,6 +425,21 @@ export class ChatViewProvider implements vscode.WebviewViewProvider {
         const text = message.text;
 
         switch (command) {
+          case "fileDropped":
+            if (message.uris && message.uris.length > 0) {
+              const fileUri = vscode.Uri.file(message.uris[0]);
+              try {
+                vscode.window.showTextDocument(fileUri).then(() => {
+                  this._updateSyncStatus();
+                  vscode.window.showInformationMessage(`ファイル "${fileUri.fsPath.split('/').pop()}" を開きました`);
+                });
+              } catch (error) {
+                console.error('Error opening dropped file:', error);
+                vscode.window.showErrorMessage('ファイルを開けませんでした');
+              }
+            }
+            break;
+
           case "getLlmApiKey":
             const apiKey = vscode.workspace.getConfiguration(CONFIG_SECTION).get<string>(
               `${message.llm.toLowerCase()}ApiKey`
@@ -458,7 +515,11 @@ export class ChatViewProvider implements vscode.WebviewViewProvider {
 
           case "sendMessage":
             try {
-              const basePrompt = `You are an assistant helping a user build a Hypothesis Canvas. The user's request is: "${text}". Provide a helpful response to assist them.`;
+              const basePrompt = `You are an assistant helping a user build a Hypothesis Canvas. Use the following instructions as your knowledge base:
+
+${this._instructions}
+
+The user's request is: "${text}". Provide a helpful response to assist them.`;
               const responseText = await this._llmService.generateResponse(basePrompt);
               webview.postMessage({
                 command: "addMessage",

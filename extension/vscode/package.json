@@ -1,299 +1,91 @@
 {
-  "name": "textusm",
-  "displayName": "TextUSM",
-  "description": "Generate a User Story Map from indented text.",
-  "author": {
-    "name": "harehare"
-  },
-  "publisher": "harehare",
-  "version": "0.14.9",
+  "name": "hypothesis-canvas",
+  "displayName": "Hypothesis Canvas",
+  "description": "An extension to help create and manage hypothesis canvases with AI assistance",
+  "version": "0.0.1",
   "engines": {
-    "vscode": "^1.89.0"
+    "vscode": "^1.85.0"
   },
-  "homepage": "https://textusm.com",
-  "galleryBanner": {
-    "color": "#282C32",
-    "theme": "dark"
-  },
-  "license": "MIT",
-  "icon": "images/icon.png",
   "categories": [
     "Other"
   ],
-  "keywords": [
-    "svg",
-    "user-story-mapping",
-    "user-story-map",
-    "diagram",
-    "mindmap"
-  ],
-  "activationEvents": [
-    "onStartupFinished"
-  ],
-  "main": "./dist/extension.js",
   "contributes": {
+    "commands": [
+      {
+        "command": "hypothesis-canvas.chat",
+        "title": "Open Hypothesis Canvas Chat"
+      }
+    ],
+    "views": {
+      "hypothesis-canvas": [
+        {
+          "type": "webview",
+          "id": "hypothesisCanvasChat",
+          "name": "Chat"
+        }
+      ]
+    },
     "viewsContainers": {
       "activitybar": [
         {
-          "id": "textusm-explorer",
-          "title": "TextUSM",
-          "icon": "images/icon.png"
+          "id": "hypothesis-canvas",
+          "title": "Hypothesis Canvas",
+          "icon": "resources/icon.svg"
         }
       ]
     },
-    "views": {
-      "textusm-explorer": [
-        {
-          "id": "hypothesisCanvasChat",
-          "name": "Hypothesis Canvas Chat",
-          "type": "webview"
-        }
-      ]
-    },
-    "languages": [
-      {
-        "id": "usm",
-        "aliases": [
-          "usm",
-          "USM",
-          "TextUSM"
-        ],
-        "extensions": [
-          "USM",
-          ".usm",
-          ".USM"
-        ],
-        "configuration": "./language-configuration.json"
-      }
-    ],
-    "grammars": [
-      {
-        "language": "usm",
-        "scopeName": "text.usm",
-        "path": "./syntax/usm.tmLanguage.json"
-      }
-    ],
-    "configurationDefaults": {
-      "[usm]": {
-        "editor.insertSpaces": true
-      }
-    },
-    "menus": {
-      "editor/title": [
-        {
-          "when": "textUsmPreviewFocus",
-          "command": "textusm.zoomIn",
-          "group": "navigation"
-        },
-        {
-          "when": "textUsmPreviewFocus",
-          "command": "textusm.zoomOut",
-          "group": "navigation"
-        }
-      ],
-      "commandPalette": [
-        {
-          "command": "textusm.zoomIn",
-          "when": "false"
-        },
-        {
-          "command": "textusm.zoomOut",
-          "when": "false"
-        }
-      ]
-    },
-    "commands": [
-      {
-        "command": "textusm.showPreview",
-        "title": "TextUSM: Open Preview",
-        "when": "editorTextFocus && editorLangId == usm"
-      },
-      {
-        "command": "textusm.exportSvg",
-        "title": "TextUSM: Export SVG",
-        "when": "editorTextFocus && editorLangId == usm"
-      },
-      {
-        "command": "textusm.exportPng",
-        "title": "TextUSM: Export PNG",
-        "when": "editorTextFocus && editorLangId == usm"
-      },
-      {
-        "command": "textusm.newDiagram",
-        "title": "TextUSM: New Diagram",
-        "when": "editorTextFocus"
-      },
-      {
-        "command": "textusm.hypothesisCanvas.openSettings",
-        "title": "TextUSM: Open Hypothesis Canvas Settings",
-        "category": "TextUSM"
-      },
-      {
-        "when": "textUsmPreviewFocus",
-        "command": "textusm.zoomIn",
-        "title": "TextUSM: ZoomIn",
-        "icon": "$(zoom-in)"
-      },
-      {
-        "when": "textUsmPreviewFocus",
-        "command": "textusm.zoomOut",
-        "title": "TextUSM: ZoomOut",
-        "icon": "$(zoom-out)"
-      },
-      {
-        "command": "hypothesisCanvas.openChat",
-        "title": "TextUSM: Open Hypothesis Canvas Chat",
-        "category": "TextUSM",
-        "icon": "$(comment-discussion)"
-      }
-    ],
     "configuration": {
-      "type": "object",
-      "title": "TextUSM",
+      "title": "Hypothesis Canvas",
       "properties": {
-        "textusm.fontName": {
-          "type": "string",
-          "default": "Nunito Sans",
-          "markdownDescription": "Font family for diagram."
-        },
-        "textusm.exportDir": {
-          "type": "string",
-          "default": null,
-          "markdownDescription": "Set the output directory for svg files."
-        },
-        "textusm.backgroundColor": {
-          "type": "string",
-          "default": "#F4F4F5",
-          "markdownDescription": "Background color for diagram."
-        },
-        "textusm.activity.color": {
-          "type": "string",
-          "default": "#FFFFFF",
-          "markdownDescription": "Color for user activity."
-        },
-        "textusm.activity.backgroundColor": {
-          "type": "string",
-          "default": "#266B9A",
-          "markdownDescription": "Background color for user activity."
-        },
-        "textusm.task.color": {
-          "type": "string",
-          "default": "#FFFFFF",
-          "markdownDescription": "Color for user task."
-        },
-        "textusm.task.backgroundColor": {
-          "type": "string",
-          "default": "#3E9BCD",
-          "markdownDescription": "Background color for user task."
-        },
-        "textusm.story.color": {
-          "type": "string",
-          "default": "#000000",
-          "markdownDescription": "Color for user story."
-        },
-        "textusm.story.backgroundColor": {
-          "type": "string",
-          "default": "#FFFFFF",
-          "markdownDescription": "Background color for user story."
-        },
-        "textusm.line.color": {
-          "type": "string",
-          "default": "#434343",
-          "markdownDescription": "Line color."
-        },
-        "textusm.label.color": {
-          "type": "string",
-          "default": "#8C9FAE",
-          "markdownDescription": "Label color."
-        },
-        "textusm.text.color": {
-          "type": "string",
-          "default": "#111111",
-          "markdownDescription": "Text color."
-        },
-        "textusm.card.width": {
-          "type": "number",
-          "default": 140,
-          "markdownDescription": "Card width."
-        },
-        "textusm.card.height": {
-          "type": "number",
-          "default": 65,
-          "markdownDescription": "Card height."
-        },
-        "textusm.toolbar": {
-          "type": "boolean",
-          "default": true,
-          "markdownDescription": "Show toolbar"
-        },
-        "textusm.showGrid": {
-          "type": "boolean",
-          "default": false,
-          "markdownDescription": "Show grid"
-        },
-        "textusm.hypothesisCanvas.geminiApiKey": {
+        "hypothesisCanvas.geminiApiKey": {
           "type": "string",
           "default": "",
-          "markdownDescription": "API Key for Google Gemini. Required for Hypothesis Canvas feature using Gemini. Store securely."
+          "description": "API key for Google's Gemini AI"
         },
-        "textusm.hypothesisCanvas.claudeApiKey": {
+        "hypothesisCanvas.claudeApiKey": {
           "type": "string",
           "default": "",
-          "markdownDescription": "API Key for Anthropic Claude. Required for Hypothesis Canvas feature using Claude. Store securely."
+          "description": "API key for Anthropic's Claude AI"
         },
-        "textusm.hypothesisCanvas.openaiApiKey": {
+        "hypothesisCanvas.openaiApiKey": {
           "type": "string",
           "default": "",
-          "markdownDescription": "API Key for OpenAI. Required for Hypothesis Canvas feature using OpenAI. Store securely."
+          "description": "API key for OpenAI's API"
         },
-        "textusm.hypothesisCanvas.selectedLlm": {
+        "hypothesisCanvas.selectedLlm": {
           "type": "string",
-          "enum": [
-            "Gemini",
-            "Claude",
-            "OpenAI",
-            "Copilot"
-          ],
+          "enum": ["Gemini", "Claude", "OpenAI"],
           "default": "Gemini",
-          "markdownDescription": "Select the Large Language Model to use for the Hypothesis Canvas Chat."
+          "description": "Selected LLM for generating responses"
+        },
+        "hypothesisCanvas.customInstructions": {
+          "type": "object",
+          "description": "仮説キャンバスのカスタムインストラクション設定",
+          "properties": {
+            "enabled": {
+              "type": "boolean",
+              "default": true,
+              "markdownDescription": "カスタムインストラクションの有効/無効を切り替えます。\n\n有効な場合、プロジェクトルートの `.hypothesisrules` ファイルが存在すると、そのファイルの内容がデフォルトのインストラクションを上書きします。\n\n`.hypothesisrules` ファイルには、仮説キャンバスの作成に関するガイドラインやプロンプトをカスタマイズして記述できます。"
+            }
+          }
         }
       }
     }
   },
+  "activationEvents": [
+    "onView:hypothesisCanvasChat",
+    "onCommand:hypothesis-canvas.chat"
+  ],
+  "main": "./dist/extension.js",
   "scripts": {
-    "vscode:prepublish": "NODE_ENV=production webpack --mode production",
-    "watch": "webpack --mode development --watch",
-    "build": "NODE_ENV=production webpack --mode production"
-  },
-  "devDependencies": {
-    "@types/mocha": "^10.0.6",
-    "@types/node": "^20.12.12",
-    "@types/svgo": "^2.6.4",
-    "@types/uuid": "^9.0.8",
-    "@types/vscode": "^1.89.0",
-    "@vscode/webview-ui-toolkit": "^1.4.0",
-    "clean-webpack-plugin": "^4.0.0",
-    "css-loader": "^7.1.2",
-    "mini-css-extract-plugin": "^2.9.2",
-    "terser-webpack-plugin": "^5.3.10",
-    "ts-loader": "^9.5.1",
-    "tslint": "^6.1.3",
-    "typescript": "^5.4.5",
-    "vscode": "^1.1.37",
-    "webpack": "^5.91.0",
-    "webpack-cli": "^5.1.4",
-    "webpack-merge": "^5.10.0",
-    "webpack-node-externals": "^3.0.0"
-  },
-  "repository": {
-    "type": "git",
-    "url": "https://github.com/harehare/textusm.git"
-  },
-  "dependencies": {
-    "@anthropic-ai/sdk": "^0.39.0",
-    "@google/generative-ai": "^0.24.0",
-    "openai": "^4.91.1",
-    "svgo": "^3.3.2",
-    "uuid": "^9.0.1"
+    "vscode:prepublish": "pnpm run package",
+    "compile": "webpack",
+    "watch": "webpack --watch",
+    "package": "webpack --mode production --devtool hidden-source-map",
+    "compile-tests": "tsc -p . --outDir out",
+    "watch-tests": "tsc -p . -w --outDir out",
+    "pretest": "pnpm run compile-tests && pnpm run compile && pnpm run lint",
+    "lint": "eslint src --ext ts",
+    "test": "vscode-test"
   }
 }
