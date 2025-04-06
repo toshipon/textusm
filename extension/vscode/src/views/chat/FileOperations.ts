@@ -8,19 +8,33 @@ export class FileOperations {
    */
   public async validateAndFormatContent(document: vscode.TextDocument): Promise<void> {
     const text = document.getText();
+    // テキストが空の場合は処理をスキップ
+    if (!text.trim()) {
+      return;
+    }
+
+    // TextUSMフォーマットが無効な場合のみ処理を実行
     if (!isValidTextUsm(text)) {
-      const formatted = formatTextUsm(text);
-      const edit = new vscode.WorkspaceEdit();
-      edit.replace(
-        document.uri,
-        new vscode.Range(
-          document.lineAt(0).range.start,
-          document.lineAt(document.lineCount - 1).range.end
-        ),
-        formatted
-      );
-      await vscode.workspace.applyEdit(edit);
-      await document.save();
+      try {
+        const formatted = formatTextUsm(text);
+        // フォーマット後のテキストが空でないことを確認
+        if (formatted.trim()) {
+          const edit = new vscode.WorkspaceEdit();
+          edit.replace(
+            document.uri,
+            new vscode.Range(
+              document.lineAt(0).range.start,
+              document.lineAt(document.lineCount - 1).range.end
+            ),
+            formatted
+          );
+          await vscode.workspace.applyEdit(edit);
+          await document.save();
+        }
+      } catch (error) {
+        console.error('Error formatting TextUSM:', error);
+        // フォーマットエラーの場合は元のテキストを保持
+      }
     }
   }
 

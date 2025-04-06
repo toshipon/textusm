@@ -131,6 +131,24 @@ export class ChatViewProvider implements vscode.WebviewViewProvider {
         await this._fileOperations.validateAndFormatContent(editor.document);
       }
     }, null, this._disposables);
+
+    // ドキュメントの内容変更を監視
+    vscode.workspace.onDidChangeTextDocument(async (event) => {
+      if (event.document === this._syncedDocument) {
+        if (this._view?.webview) {
+          this._view.webview.postMessage({
+            command: 'documentChanged',
+            content: event.document.getText()
+          });
+        }
+        if (ChatViewProvider.currentPanel?.webview) {
+          ChatViewProvider.currentPanel.webview.postMessage({
+            command: 'documentChanged',
+            content: event.document.getText()
+          });
+        }
+      }
+    }, null, this._disposables);
   }
 
   private _updateSyncStatus() {
