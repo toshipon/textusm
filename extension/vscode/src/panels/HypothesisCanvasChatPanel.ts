@@ -358,10 +358,10 @@ export class HypothesisCanvasChatPanel {
               buttonContainer.className = 'action-buttons';
 
               const insertButton = document.createElement('vscode-button');
-              insertButton.textContent = 'Insert to Markdown';
+              insertButton.textContent = 'Edit with AI';
               insertButton.appearance = 'secondary';
               insertButton.addEventListener('click', () => {
-                vscode.postMessage({ command: 'insertToMarkdown', text: text });
+                vscode.postMessage({ command: 'editWithAI', text: text });
               });
               buttonContainer.appendChild(insertButton);
               messageContainer.appendChild(buttonContainer);
@@ -641,89 +641,96 @@ export class HypothesisCanvasChatPanel {
             }
             break;
 
-          case "insertToMarkdown":
+          case "editWithAI":
             const editor = vscode.window.activeTextEditor;
             if (!editor) {
-              vscode.window.showErrorMessage("No active text editor found.");
+              vscode.window.showErrorMessage("アクティブなエディタが見つかりません。");
               return;
             }
             if (editor.document.languageId !== "markdown") {
               vscode.window.showErrorMessage(
-                "The active editor is not a Markdown file."
+                "アクティブなエディタがMarkdownファイルではありません。"
               );
               return;
             }
 
             const document = editor.document;
-            const textToInsert = message.text;
+            const selection = editor.selection;
+            let textToEdit: string;
+            let editRange: vscode.Range;
 
-            const sections: { label: string; line: number }[] = [];
-            for (let i = 0; i < document.lineCount; i++) {
-              const line = document.lineAt(i);
-              if (line.text.startsWith("## ")) {
-                sections.push({
-                  label: line.text.substring(3).trim(),
-                  line: i,
-                });
-              }
-            }
-
-            if (sections.length === 0) {
-              const endPosition = new vscode.Position(document.lineCount, 0);
-              editor
-                .edit((editBuilder) => {
-                  editBuilder.insert(endPosition, `\n\n${textToInsert}\n`);
-                })
-                .then((success) => {
-                  if (success) {
-                    vscode.window.showInformationMessage(
-                      "Text inserted at the end of the file."
-                    );
-                  } else {
-                    vscode.window.showErrorMessage("Failed to insert text.");
-                  }
-                });
-              return;
-            }
-
-            const selectedSection = await vscode.window.showQuickPick(
-              sections.map((s) => ({
-                label: s.label,
-                description: `Line ${s.line + 1}`,
-                line: s.line,
-              })),
-              { placeHolder: "Select the section to insert the text into" }
-            );
-
-            if (selectedSection) {
-              const insertPosition = new vscode.Position(
-                selectedSection.line + 1,
-                0
-              );
-
-              editor
-                .edit((editBuilder) => {
-                  editBuilder.insert(insertPosition, `\n${textToInsert}\n`);
-                })
-                .then((success) => {
-                  if (success) {
-                    vscode.window.showInformationMessage(
-                      `Text inserted under section: ${selectedSection.label}`
-                    );
-                    editor.revealRange(
-                      new vscode.Range(
-                        insertPosition,
-                        insertPosition.translate(
-                          textToInsert.split("\n").length + 1
-                        )
-                      )
-                    );
-                  } else {
-                    vscode.window.showErrorMessage("Failed to insert text.");
-                  }
-                });
+            // 選択範囲があれば、その範囲のテキストを編集
+            if (!selection.isEmpty) {
+              textToEdit = document.getText(selection);
+              editRange = selection;
             } else {
-              vscode.window.showInformationMessage("Insertion cancelled.");
+              // 選択範囲がない場合は、ファイル全体を編集
+              textToEdit = document.getText();
+              editRange = new vscode.Range(
+                document.positionAt(0),
+                document.positionAt(document.getText().length)
+              );
+            }
+
+            try {
+              // LLMにテキスト編集を依頼
+              let editPrompt = `以下のMarkdownテキストを編集してください。ユーザーの意図: ${message.text}\n\n${textToEdit}`;
+              let editedText = "";
+
+              switch (this._selectedLlm) {
+                case "Gemini":
+                  if (!this._genAI) {
+                    throw new Error("Gemini client not initialized");
+                  }
+                  const model = this._genAI.getGenerativeModel({
+                    model: GEMINI_MODEL_NAME,
+                  });
+                  const result = await model.generateContent(editPrompt);
+                  editedText = result.response.text();
+                  break;
+
+                case "Claude":
+                  if (!this._anthropic) {
+                    throw new Error("Claude client not initialized");
+                  }
+                  const claudeResponse = await this._anthropic.messages.create({
+                    model: CLAUDE_MODEL_NAME,
+                    max_tokens: 1024,
+                    messages: [{ role: "user", content: editPrompt }],
+                  });
+                  if (
+                    claudeResponse.content &&
+                    claudeResponse.content.length > 0 &&
+                    claudeResponse.content[0].type === "text"
+                  ) {
+                    editedText = claudeResponse.content[0].text;
+                  }
+                  break;
+
+                case "OpenAI":
+                  if (!this._openai) {
+                    throw new Error("OpenAI client not initialized");
+                  }
+                  const openaiResponse = await this._openai.chat.completions.create({
+                    model: OPENAI_MODEL_NAME,
+                    messages: [{ role: "user", content: editPrompt }],
+                  });
+                  editedText = openaiResponse.choices[0]?.message?.content || "";
+                  break;
+              }
+
+              if (editedText) {
+                // 編集をドキュメントに適用
+                await editor.edit(editBuilder => {
+                  editBuilder.replace(editRange, editedText);
+                });
+                vscode.window.showInformationMessage("テキストを編集しました。");
+              }
+            } catch (error: any) {
+              console.error("Error editing text:", error);
+              vscode.window.showErrorMessage(
+                `テキストの編集に失敗しました: ${error.message}`
+              );
             }
             break;
         }
