@@ -276,15 +276,31 @@ export class WebviewContentProvider {
           const insertButton = document.createElement('vscode-button');
           insertButton.textContent = 'Apply Changes';
           insertButton.appearance = 'secondary';
-          insertButton.addEventListener('click', () => {
-            vscode.postMessage({ command: 'editWithAI', text: text });
-          });
+            insertButton.addEventListener('click', (event) => {
+              const button = event.target;
+              button.disabled = true;
+              button.textContent = '適用中...';
+              
+              vscode.postMessage({ command: 'editWithAI', text: text });
+              
+              // 3秒後にボタンを元に戻す（エラー時の対応）
+              setTimeout(() => {
+                button.disabled = false;
+                button.textContent = 'Apply Changes';
+              }, 3000);
+            });
           buttonContainer.appendChild(insertButton);
           messageContainer.appendChild(buttonContainer);
         }
 
         messagesDiv.appendChild(messageContainer);
-        messagesDiv.scrollTop = messagesDiv.scrollHeight;
+        
+        // スムーズスクロールアニメーション
+        messageContainer.scrollIntoView({ 
+          behavior: "smooth", 
+          block: "end",
+          inline: "nearest" 
+        });
       }
 
       function showLoadingMessage() {
@@ -293,7 +309,11 @@ export class WebviewContentProvider {
         loadingMessageElement.className = 'loading';
         loadingMessageElement.textContent = 'LLM is thinking...';
         messagesDiv.appendChild(loadingMessageElement);
-        messagesDiv.scrollTop = messagesDiv.scrollHeight;
+        loadingMessageElement.scrollIntoView({ 
+          behavior: "smooth", 
+          block: "end",
+          inline: "nearest" 
+        });
       }
 
       function removeLoadingMessage() {
