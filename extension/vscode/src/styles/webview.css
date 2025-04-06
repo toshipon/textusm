@@ -3,8 +3,9 @@ body {
   font-family: var(--vscode-font-family);
   color: var(--vscode-editor-foreground);
   background-color: var(--vscode-editor-background);
-  padding: 1em;
+  padding: 0.5em;
   height: 100vh;
+  margin: 0;
   box-sizing: border-box;
   display: flex;
   flex-direction: column;
@@ -17,63 +18,181 @@ body {
   height: 0; /* Needed for flex-grow to work correctly */
 }
 
+/* Settings Panel Styles */
+#settings-panel {
+  background-color: var(--vscode-sideBar-background);
+  border: 1px solid var(--vscode-sideBar-border);
+  padding: 0.8em;
+  margin-bottom: 0.8em;
+  border-radius: 3px;
+  font-size: 0.9em;
+}
+
+.settings-row {
+  display: flex;
+  gap: 0.8em;
+  align-items: center;
+  flex-wrap: wrap;
+  margin-bottom: 0.5em;
+}
+
+.settings-label {
+  font-weight: bold;
+  margin-bottom: 0.3em;
+  color: var(--vscode-foreground);
+}
+
+#llm-selector {
+  min-width: 120px;
+  height: 28px;
+}
+
+#api-key {
+  flex: 1;
+  min-width: 180px;
+  height: 28px;
+}
+
+.api-key-container {
+  position: relative;
+  flex: 1;
+  display: flex;
+  align-items: center;
+}
+
+.toggle-visibility {
+  position: absolute;
+  right: 8px;
+  background: none;
+  border: none;
+  color: var(--vscode-foreground);
+  cursor: pointer;
+  opacity: 0.7;
+  padding: 4px;
+}
+
+.toggle-visibility:hover {
+  opacity: 1;
+}
+
+#status-message {
+  margin-top: 0.8em;
+  padding: 0.8em;
+  border-radius: 3px;
+  font-size: 0.9em;
+  display: flex;
+  align-items: center;
+  gap: 0.5em;
+}
+
+#status-message.error {
+  color: var(--vscode-errorForeground);
+  background-color: var(--vscode-inputValidation-errorBackground);
+  border: 1px solid var(--vscode-inputValidation-errorBorder);
+}
+
+#status-message.success {
+  color: var(--vscode-terminal-ansiGreen);
+  background-color: var(--vscode-successBackground);
+  border: 1px solid var(--vscode-terminal-ansiGreen);
+}
+
+#sync-info {
+  background-color: var(--vscode-editor-inactiveSelectionBackground);
+  padding: 0.5em;
+  margin-bottom: 0.8em;
+  border-radius: 3px;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+#sync-file {
+  color: var(--vscode-descriptionForeground);
+  font-size: 0.9em;
+}
+
+#new-file-button {
+  font-size: 0.9em;
+  padding: 2px 8px;
+}
+
 #messages {
   flex-grow: 1;
   overflow-y: auto;
   border: 1px solid var(--vscode-sideBar-border);
-  margin-bottom: 1em;
-  padding: 0.5em;
+  margin-bottom: 0.8em;
+  padding: 0.8em;
+  border-radius: 3px;
+  font-size: 0.9em;
 }
 
 #input-area {
   display: flex;
-  align-items: flex-end; /* Align items to the bottom */
+  flex-direction: column;
+  gap: 0.5em;
+  gap: 0.8em;
 }
 
 #message-input {
   flex-grow: 1;
-  margin-right: 0.5em;
 }
 
 /* Ensure button height adjusts to content */
 vscode-button {
   height: auto;
+  min-height: 32px;
 }
 
 .message-container {
-  margin-bottom: 0.8em; /* Add space between messages */
-  padding-bottom: 0.5em; /* Add padding below the text */
-  border-bottom: 1px solid var(--vscode-editorWidget-border); /* Optional separator */
+  margin-bottom: 1em;
+  padding-bottom: 0.8em;
+  border-bottom: 1px solid var(--vscode-editorWidget-border);
 }
 
 .message-container:last-child {
-  border-bottom: none; /* Remove border for the last message */
+  border-bottom: none;
   margin-bottom: 0;
 }
 
-
 p {
-  margin: 0.3em 0;
-  white-space: pre-wrap; /* Preserve whitespace and wrap text */
+  margin: 0.5em 0;
+  white-space: pre-wrap;
+  line-height: 1.4;
 }
 
 .action-buttons {
-  margin-top: 0.5em; /* Space between message text and button */
+  margin-top: 0.8em;
+  display: flex;
+  gap: 0.5em;
 }
-
-.action-buttons vscode-button {
-  /* Add specific styles for action buttons if needed */
-  /* Example: make them smaller */
-  /* font-size: var(--vscode-font-size); */
-  /* padding: 2px 6px; */
-}
-
 
 .loading {
   font-style: italic;
   color: var(--vscode-descriptionForeground);
+  display: flex;
+  align-items: center;
+  gap: 0.5em;
+}
+
+.loading::after {
+  content: "";
+  display: inline-block;
+  width: 12px;
+  height: 12px;
+  border: 2px solid var(--vscode-descriptionForeground);
+  border-top-color: transparent;
+  border-radius: 50%;
+  animation: spin 1s linear infinite;
+}
+
+@keyframes spin {
+  to {
+    transform: rotate(360deg);
+  }
 }
 
 strong {
-    font-weight: bold;
+  font-weight: bold;
+  color: var(--vscode-editor-foreground);
 }

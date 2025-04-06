@@ -32,6 +32,24 @@
   ],
   "main": "./dist/extension.js",
   "contributes": {
+    "viewsContainers": {
+      "activitybar": [
+        {
+          "id": "textusm-explorer",
+          "title": "TextUSM",
+          "icon": "images/icon.png"
+        }
+      ]
+    },
+    "views": {
+      "textusm-explorer": [
+        {
+          "id": "hypothesisCanvasView",
+          "name": "Hypothesis Canvas",
+          "type": "webview"
+        }
+      ]
+    },
     "languages": [
       {
         "id": "usm",
@@ -104,6 +122,11 @@
         "command": "textusm.newDiagram",
         "title": "TextUSM: New Diagram",
         "when": "editorTextFocus"
+      },
+      {
+        "command": "textusm.hypothesisCanvas.openSettings",
+        "title": "TextUSM: Open Hypothesis Canvas Settings",
+        "category": "TextUSM"
       },
       {
         "when": "textUsmPreviewFocus",
@@ -227,7 +250,8 @@
           "enum": [
             "Gemini",
             "Claude",
-            "OpenAI"
+            "OpenAI",
+            "Copilot"
           ],
           "default": "Gemini",
           "markdownDescription": "Select the Large Language Model to use for the Hypothesis Canvas Chat."

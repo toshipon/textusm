@@ -10,9 +10,6 @@ import {
 import Anthropic from "@anthropic-ai/sdk";
 import OpenAI from "openai";
 
-// --- 定数 ---
-const CHAT_WEBVIEW_ID = "hypothesisCanvasChat";
-const CHAT_TITLE = "Hypothesis Canvas Chat";
 const CONFIG_SECTION = "textusm.hypothesisCanvas";
 const GEMINI_API_KEY_CONFIG = "geminiApiKey";
 const CLAUDE_API_KEY_CONFIG = "claudeApiKey";
@@ -25,11 +22,11 @@ const OPENAI_MODEL_NAME = "gpt-4o-mini";
 
 type LlmType = "Gemini" | "Claude" | "OpenAI";
 
-export class HypothesisCanvasChatPanel {
-  public static currentPanel: HypothesisCanvasChatPanel | undefined;
-  private readonly _panel: vscode.WebviewPanel;
-  private _syncedDocument: vscode.TextDocument | undefined;
-  private readonly _extensionUri: vscode.Uri;
+export class HypothesisCanvasViewProvider implements vscode.WebviewViewProvider {
+  public static readonly viewType = 'hypothesisCanvasView';
+
+  private _view?: vscode.WebviewView;
+  private _extensionUri: vscode.Uri;
   private _disposables: vscode.Disposable[] = [];
 
   private _genAI: GoogleGenerativeAI | undefined;
@@ -37,24 +34,30 @@ export class HypothesisCanvasChatPanel {
   private _openai: OpenAI | undefined;
   private _selectedLlm: LlmType = "Gemini";
 
-  private constructor(panel: vscode.WebviewPanel, extensionUri: vscode.Uri) {
-    this._panel = panel;
+  constructor(extensionUri: vscode.Uri) {
     this._extensionUri = extensionUri;
-
     this._initializeLlmClients();
-    this._panel.onDidDispose(() => this.dispose(), null, this._disposables);
-    this._panel.webview.html = this._getWebviewContent(
-      this._panel.webview,
-      this._extensionUri
-    );
-    this._updateSyncStatus();
+  }
 
-    // アクティブエディタの変更を監視
-    vscode.window.onDidChangeActiveTextEditor(() => {
-      this._updateSyncStatus();
-    }, null, this._disposables);
-    this._setWebviewMessageListener(this._panel.webview);
+  public resolveWebviewView(
+    webviewView: vscode.WebviewView,
+    context: vscode.WebviewViewResolveContext,
+    _token: vscode.CancellationToken,
+  ) {
+    this._view = webviewView;
 
+    webviewView.webview.options = {
+      enableScripts: true,
+      localResourceRoots: [
+        vscode.Uri.file(path.join(this._extensionUri.fsPath, 'dist')),
+        vscode.Uri.file(path.join(this._extensionUri.fsPath, 'node_modules', '@vscode', 'webview-ui-toolkit', 'dist')),
+      ],
+    };
+
+    webviewView.webview.html = this._getWebviewContent(webviewView.webview);
+    this._setWebviewMessageListener(webviewView.webview);
+
+    // Configuration change listener
     vscode.workspace.onDidChangeConfiguration(
       (e) => {
         const affectsConfig = (key: string) =>
@@ -66,6 +69,9 @@ export class HypothesisCanvasChatPanel {
           affectsConfig(SELECTED_LLM_CONFIG)
         ) {
           this._initializeLlmClients();
+          if (this._view) {
+            this._view.webview.html = this._getWebviewContent(this._view.webview);
+          }
         }
       },
       null,
@@ -126,95 +132,37 @@ export class HypothesisCanvasChatPanel {
       console.error(errorMessage, error);
     }
 
-    if (!clientInitialized && errorMessage) {
+    if (!clientInitialized && errorMessage && this._view) {
       console.warn(`${errorMessage} Client not initialized.`);
-      if (HypothesisCanvasChatPanel.currentPanel === this) {
-        this._panel.webview.postMessage({
-          command: "updateStatus",
-          status: "error",
-          message: `Error: ${errorMessage} Please check your settings.`,
-        });
-      }
-    } else if (clientInitialized) {
-      if (HypothesisCanvasChatPanel.currentPanel === this) {
-        this._panel.webview.postMessage({
-          command: "updateStatus",
-          status: "success",
-          message: `Connected to ${this._selectedLlm}`,
-        });
-      }
+      this._view.webview.postMessage({
+        command: "updateStatus",
+        status: "error",
+        message: `Error: ${errorMessage} Please check your settings.`,
+      });
+    } else if (clientInitialized && this._view) {
+      this._view.webview.postMessage({
+        command: "updateStatus",
+        status: "success",
+        message: `Connected to ${this._selectedLlm}`,
+      });
     }
   }
 
-  public static render(extensionUri: vscode.Uri) {
-    const column = vscode.window.activeTextEditor
-      ? vscode.window.activeTextEditor.viewColumn
-      : undefined;
-
-    if (HypothesisCanvasChatPanel.currentPanel) {
-      HypothesisCanvasChatPanel.currentPanel._panel.reveal(column);
-      return;
-    }
-
-    const toolkitBasePath = path.join(
-      extensionUri.fsPath,
-      "node_modules",
-      "@vscode",
-      "webview-ui-toolkit",
-      "dist"
-    );
-    const toolkitUri = vscode.Uri.file(toolkitBasePath);
-
-    const panel = vscode.window.createWebviewPanel(
-      CHAT_WEBVIEW_ID,
-      CHAT_TITLE,
-      column || vscode.ViewColumn.One,
-      {
-        enableScripts: true,
-        localResourceRoots: [
-          toolkitUri,
-          vscode.Uri.file(path.join(extensionUri.fsPath, "dist")),
-        ],
-      }
-    );
-
-    HypothesisCanvasChatPanel.currentPanel = new HypothesisCanvasChatPanel(
-      panel,
-      extensionUri
-    );
-  }
-
-  public dispose() {
-    HypothesisCanvasChatPanel.currentPanel = undefined;
-    this._panel.dispose();
-    while (this._disposables.length) {
-      const x = this._disposables.pop();
-      if (x) {
-        x.dispose();
-      }
-    }
-    console.log("HypothesisCanvasChatPanel disposed.");
-  }
-
-  private _getWebviewContent(
-    webview: vscode.Webview,
-    extensionUri: vscode.Uri
-  ): string {
+  private _getWebviewContent(webview: vscode.Webview): string {
     const nonce = getNonce();
-    const toolkitUri = getUri(webview, extensionUri, [
+    const toolkitUri = getUri(webview, this._extensionUri, [
       "node_modules",
       "@vscode",
       "webview-ui-toolkit",
       "dist",
       "toolkit.js",
     ]);
-    const stylesUri = getUri(webview, extensionUri, ["dist", "webview.css"]);
+    const stylesUri = getUri(webview, this._extensionUri, ["dist", "webview.css"]);
 
     // Get current configuration
     const config = vscode.workspace.getConfiguration(CONFIG_SECTION);
     const currentLlm = config.get<LlmType>(SELECTED_LLM_CONFIG) || "Gemini";
-    const currentApiKey =
-      config.get<string>(`${currentLlm.toLowerCase()}ApiKey`) || "";
+    const currentApiKey = config.get<string>(`${currentLlm.toLowerCase()}ApiKey`) || "";
 
     return /*html*/ `<!DOCTYPE html>
       <html lang="en">
@@ -224,54 +172,47 @@ export class HypothesisCanvasChatPanel {
       webview.cspSource
     } 'unsafe-inline'; font-src ${webview.cspSource};">
         <meta name="viewport" content="width=device-width, initial-scale=1.0">
-        <title>${CHAT_TITLE}</title>
         <link rel="stylesheet" href="${stylesUri}">
       </head>
       <body>
         <div id="chat-container">
-          <h2>${CHAT_TITLE}</h2>
-          
-           <div id="settings-panel">
-             <div class="settings-label">LLM Configuration</div>
-             <div class="settings-row">
-               <vscode-dropdown id="llm-selector">
-                 <vscode-option value="Gemini" ${
-                   currentLlm === "Gemini" ? "selected" : ""
-                 }>Gemini</vscode-option>
-                 <vscode-option value="Claude" ${
-                   currentLlm === "Claude" ? "selected" : ""
-                 }>Claude</vscode-option>
-                 <vscode-option value="OpenAI" ${
-                   currentLlm === "OpenAI" ? "selected" : ""
-                 }>OpenAI</vscode-option>
-               </vscode-dropdown>
-               <div class="api-key-container">
-                 <vscode-text-field 
-                   type="password" 
-                   id="api-key" 
-                   placeholder="Enter API Key for selected LLM">
-                 </vscode-text-field>
-                 <button class="toggle-visibility" id="toggle-api-key" title="Toggle API key visibility">
-                   👁
-                 </button>
-               </div>
-               <vscode-button id="save-settings" appearance="primary">Save Settings</vscode-button>
-             </div>
-             <div id="status-message"></div>
-           </div>
+          <div id="settings-panel">
+            <div class="settings-label">LLM Configuration</div>
+            <div class="settings-row">
+              <vscode-dropdown id="llm-selector">
+                <vscode-option value="Gemini" ${
+                  currentLlm === "Gemini" ? "selected" : ""
+                }>Gemini</vscode-option>
+                <vscode-option value="Claude" ${
+                  currentLlm === "Claude" ? "selected" : ""
+                }>Claude</vscode-option>
+                <vscode-option value="OpenAI" ${
+                  currentLlm === "OpenAI" ? "selected" : ""
+                }>OpenAI</vscode-option>
+              </vscode-dropdown>
+              <div class="api-key-container">
+                <vscode-text-field 
+                  type="password" 
+                  id="api-key" 
+                  placeholder="Enter API Key for selected LLM">
+                </vscode-text-field>
+                <button class="toggle-visibility" id="toggle-api-key" title="Toggle API key visibility">
+                  👁
+                </button>
+              </div>
+              <vscode-button id="save-settings" appearance="primary">Save Settings</vscode-button>
+            </div>
+            <div id="status-message"></div>
+          </div>
 
           <div id="messages">
             <p>Welcome to Hypothesis Canvas Chat! Select your preferred LLM and enter your API key to get started.</p>
           </div>
           
-           <div id="sync-info">
-             <span id="sync-file">Not synced with any file</span>
-             <vscode-button id="new-file-button" appearance="secondary" style="display: none;">Create New File</vscode-button>
-           </div>
-           <div id="input-area">
-             <vscode-text-area id="message-input" placeholder="Type your message..." resize="vertical" rows="1"></vscode-text-area>
-             <vscode-button id="send-button" appearance="primary">Send</vscode-button>
-           </div>
+          <div id="input-area">
+            <vscode-text-area id="message-input" placeholder="Type your message..." resize="vertical" rows="1"></vscode-text-area>
+            <vscode-button id="send-button" appearance="primary">Send</vscode-button>
+          </div>
         </div>
 
         <script type="module" nonce="${nonce}" src="${toolkitUri}"></script>
@@ -280,39 +221,34 @@ export class HypothesisCanvasChatPanel {
           const sendButton = document.getElementById('send-button');
           const messageInput = document.getElementById('message-input');
           const messagesDiv = document.getElementById('messages');
-           const llmSelector = document.getElementById('llm-selector');
-           const apiKeyInput = document.getElementById('api-key');
-           const saveSettingsButton = document.getElementById('save-settings');
-           const statusMessage = document.getElementById('status-message');
-           const toggleApiKeyButton = document.getElementById('toggle-api-key');
-           let isApiKeyVisible = false;
-
-           // Toggle API key visibility
-           toggleApiKeyButton.addEventListener('click', () => {
-             isApiKeyVisible = !isApiKeyVisible;
-             apiKeyInput.type = isApiKeyVisible ? 'text' : 'password';
-             toggleApiKeyButton.textContent = isApiKeyVisible ? '🔒' : '👁';
-           });
-
-           // Enable/disable save button based on API key presence
-           apiKeyInput.addEventListener('input', () => {
-             saveSettingsButton.disabled = !apiKeyInput.value.trim();
-           });
+          const llmSelector = document.getElementById('llm-selector');
+          const apiKeyInput = document.getElementById('api-key');
+          const saveSettingsButton = document.getElementById('save-settings');
+          const statusMessage = document.getElementById('status-message');
+          const toggleApiKeyButton = document.getElementById('toggle-api-key');
           let loadingMessageElement = null;
+          let isApiKeyVisible = false;
+
+          // Toggle API key visibility
+          toggleApiKeyButton.addEventListener('click', () => {
+            isApiKeyVisible = !isApiKeyVisible;
+            apiKeyInput.type = isApiKeyVisible ? 'text' : 'password';
+            toggleApiKeyButton.textContent = isApiKeyVisible ? '🔒' : '👁';
+          });
+
+          // Enable/disable save button based on API key presence
+          apiKeyInput.addEventListener('input', () => {
+            saveSettingsButton.disabled = !apiKeyInput.value.trim();
+          });
 
           // Event Listeners
-           sendButton.addEventListener('click', sendMessage);
-           messageInput.addEventListener('keydown', (event) => {
-             if (event.key === 'Enter' && !event.shiftKey && !event.isComposing) {
-               event.preventDefault();
-               sendMessage();
-             }
-           });
-
-           // 新規ファイル作成ボタンのイベントリスナー
-           document.getElementById('new-file-button').addEventListener('click', () => {
-             vscode.postMessage({ command: 'createNewFile' });
-           });
+          sendButton.addEventListener('click', sendMessage);
+          messageInput.addEventListener('keydown', (event) => {
+            if (event.key === 'Enter' && !event.shiftKey) {
+              event.preventDefault();
+              sendMessage();
+            }
+          });
 
           // Settings panel listeners
           llmSelector.addEventListener('change', () => {
@@ -395,29 +331,6 @@ export class HypothesisCanvasChatPanel {
           window.addEventListener('message', event => {
             const message = event.data;
             switch (message.command) {
-              case 'updateSyncStatus':
-                const syncFileElement = document.getElementById('sync-file');
-                const newFileButton = document.getElementById('new-file-button');
-                
-                if (message.syncedFile) {
-                  const filename = message.syncedFile.split('/').pop();
-                  if (syncFileElement) {
-                    syncFileElement.textContent = '現在のファイル: ' + filename;
-                  }
-                  
-                  if (newFileButton) {
-                    newFileButton.style.display = message.isMarkdown ? 'none' : 'inline-flex';
-                  }
-                } else {
-                  if (syncFileElement) {
-                    syncFileElement.textContent = 'ファイルが選択されていません';
-                  }
-                  if (newFileButton) {
-                    newFileButton.style.display = 'none';
-                  }
-                }
-                break;
-
               case 'addMessage':
                 const isLLM = ["Gemini", "Claude", "OpenAI"].includes(message.sender);
                 addMessage(message.sender || "LLM", message.text, isLLM);
@@ -439,20 +352,6 @@ export class HypothesisCanvasChatPanel {
       </html>`;
   }
 
-  private _updateSyncStatus() {
-    const editor = vscode.window.activeTextEditor;
-    this._syncedDocument = editor?.document;
-
-    if (!this._panel?.webview) return;
-
-    const isMarkdown = editor?.document.languageId === 'markdown';
-    this._panel.webview.postMessage({
-      command: 'updateSyncStatus',
-      syncedFile: editor ? editor.document.fileName : undefined,
-      isMarkdown
-    });
-  }
-
   private async _setWebviewMessageListener(webview: vscode.Webview) {
     webview.onDidReceiveMessage(
       async (message: any) => {
@@ -469,37 +368,6 @@ export class HypothesisCanvasChatPanel {
               command: "updateApiKey",
               apiKey: apiKey || "",
             });
-            break;
-
-          case "createNewFile":
-            const defaultUri = vscode.Uri.file(path.join(
-              vscode.workspace.workspaceFolders?.[0]?.uri.fsPath || '',
-              'untitled.md'
-            ));
-            
-            const fileUri = await vscode.window.showSaveDialog({
-              defaultUri,
-              filters: {
-                'Markdown': ['md']
-              }
-            });
-
-            if (fileUri) {
-              try {
-                const edit = new vscode.WorkspaceEdit();
-                edit.createFile(fileUri, { ignoreIfExists: true });
-                await vscode.workspace.applyEdit(edit);
-                
-                const document = await vscode.workspace.openTextDocument(fileUri);
-                await vscode.window.showTextDocument(document);
-                
-                this._updateSyncStatus();
-                vscode.window.showInformationMessage('新規Markdownファイルを作成しました。');
-              } catch (error) {
-                console.error('Error creating new file:', error);
-                vscode.window.showErrorMessage('ファイルの作成に失敗しました。');
-              }
-            }
             break;
 
           case "saveSettings":

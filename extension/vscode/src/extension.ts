@@ -1,10 +1,20 @@
 import * as vscode from "vscode";
 import { registerCommands } from "./commands";
 import { DiagramPanel } from "./panels/DiagramPanel";
+import { HypothesisCanvasViewProvider } from "./providers/HypothesisCanvasViewProvider";
 
 export function activate(context: vscode.ExtensionContext) {
   console.log("Activating TextUSM extension");
   registerCommands(context);
+
+  // Register Hypothesis Canvas View Provider
+  const hypothesisCanvasProvider = new HypothesisCanvasViewProvider(context.extensionUri);
+  context.subscriptions.push(
+    vscode.window.registerWebviewViewProvider(
+      HypothesisCanvasViewProvider.viewType,
+      hypothesisCanvasProvider
+    )
+  );
   
   // エディタの切り替えを監視
   context.subscriptions.push(
