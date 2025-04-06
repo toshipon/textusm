@@ -3,45 +3,29 @@ import * as path from "path";
 import { getUri } from "../utils/getUri";
 import { getNonce } from "../utils/getNonce";
 import {
-  GoogleGenerativeAI,
-  HarmCategory,
-  HarmBlockThreshold,
-} from "@google/generative-ai";
-import Anthropic from "@anthropic-ai/sdk";
-import OpenAI from "openai";
+  LlmService,
+  LlmType,
+  CONFIG_SECTION,
+  SELECTED_LLM_CONFIG
+} from "../services/LlmService";
 
 // --- 定数 ---
 const CHAT_WEBVIEW_ID = "hypothesisCanvasChat";
 const CHAT_TITLE = "Hypothesis Canvas Chat";
-const CONFIG_SECTION = "textusm.hypothesisCanvas";
-const GEMINI_API_KEY_CONFIG = "geminiApiKey";
-const CLAUDE_API_KEY_CONFIG = "claudeApiKey";
-const OPENAI_API_KEY_CONFIG = "openaiApiKey";
-const SELECTED_LLM_CONFIG = "selectedLlm";
-
-const GEMINI_MODEL_NAME = "gemini-1.5-flash";
-const CLAUDE_MODEL_NAME = "claude-3-haiku-20240307";
-const OPENAI_MODEL_NAME = "gpt-4o-mini";
-
-type LlmType = "Gemini" | "Claude" | "OpenAI";
 
 export class HypothesisCanvasChatPanel {
   public static currentPanel: HypothesisCanvasChatPanel | undefined;
   private readonly _panel: vscode.WebviewPanel;
   private _syncedDocument: vscode.TextDocument | undefined;
   private readonly _extensionUri: vscode.Uri;
+  private readonly _llmService: LlmService;
   private _disposables: vscode.Disposable[] = [];
-
-  private _genAI: GoogleGenerativeAI | undefined;
-  private _anthropic: Anthropic | undefined;
-  private _openai: OpenAI | undefined;
-  private _selectedLlm: LlmType = "Gemini";
 
   private constructor(panel: vscode.WebviewPanel, extensionUri: vscode.Uri) {
     this._panel = panel;
     this._extensionUri = extensionUri;
+    this._llmService = new LlmService();
 
-    this._initializeLlmClients();
     this._panel.onDidDispose(() => this.dispose(), null, this._disposables);
     this._panel.webview.html = this._getWebviewContent(
       this._panel.webview,
@@ -54,97 +38,8 @@ export class HypothesisCanvasChatPanel {
       this._updateSyncStatus();
     }, null, this._disposables);
     this._setWebviewMessageListener(this._panel.webview);
-
-    vscode.workspace.onDidChangeConfiguration(
-      (e) => {
-        const affectsConfig = (key: string) =>
-          e.affectsConfiguration(`${CONFIG_SECTION}.${key}`);
-        if (
-          affectsConfig(GEMINI_API_KEY_CONFIG) ||
-          affectsConfig(CLAUDE_API_KEY_CONFIG) ||
-          affectsConfig(OPENAI_API_KEY_CONFIG) ||
-          affectsConfig(SELECTED_LLM_CONFIG)
-        ) {
-          this._initializeLlmClients();
-        }
-      },
-      null,
-      this._disposables
-    );
   }
 
-  private _initializeLlmClients() {
-    const config = vscode.workspace.getConfiguration(CONFIG_SECTION);
-    this._selectedLlm = config.get<LlmType>(SELECTED_LLM_CONFIG) || "Gemini";
-
-    this._genAI = undefined;
-    this._anthropic = undefined;
-    this._openai = undefined;
-
-    let apiKey: string | undefined;
-    let clientInitialized = false;
-    let errorMessage: string | undefined;
-
-    try {
-      switch (this._selectedLlm) {
-        case "Gemini":
-          apiKey = config.get<string>(GEMINI_API_KEY_CONFIG);
-          if (apiKey) {
-            this._genAI = new GoogleGenerativeAI(apiKey);
-            console.log("Gemini client initialized.");
-            clientInitialized = true;
-          } else {
-            errorMessage = "Gemini API Key not configured.";
-          }
-          break;
-        case "Claude":
-          apiKey = config.get<string>(CLAUDE_API_KEY_CONFIG);
-          if (apiKey) {
-            this._anthropic = new Anthropic({ apiKey });
-            console.log("Claude client initialized.");
-            clientInitialized = true;
-          } else {
-            errorMessage = "Claude API Key not configured.";
-          }
-          break;
-        case "OpenAI":
-          apiKey = config.get<string>(OPENAI_API_KEY_CONFIG);
-          if (apiKey) {
-            this._openai = new OpenAI({ apiKey });
-            console.log("OpenAI client initialized.");
-            clientInitialized = true;
-          } else {
-            errorMessage = "OpenAI API Key not configured.";
-          }
-          break;
-        default:
-          errorMessage = `Unsupported LLM selected: ${this._selectedLlm}`;
-          console.warn(errorMessage);
-      }
-    } catch (error: any) {
-      errorMessage = `Error initializing ${this._selectedLlm} client: ${error.message}`;
-      console.error(errorMessage, error);
-    }
-
-    if (!clientInitialized && errorMessage) {
-      console.warn(`${errorMessage} Client not initialized.`);
-      if (HypothesisCanvasChatPanel.currentPanel === this) {
-        this._panel.webview.postMessage({
-          command: "updateStatus",
-          status: "error",
-          message: `Error: ${errorMessage} Please check your settings.`,
-        });
-      }
-    } else if (clientInitialized) {
-      if (HypothesisCanvasChatPanel.currentPanel === this) {
-        this._panel.webview.postMessage({
-          command: "updateStatus",
-          status: "success",
-          message: `Connected to ${this._selectedLlm}`,
-        });
-      }
-    }
-  }
 
   public static render(extensionUri: vscode.Uri) {
     const column = vscode.window.activeTextEditor
@@ -502,7 +397,7 @@ export class HypothesisCanvasChatPanel {
             }
             break;
 
-          case "saveSettings":
+           case "saveSettings":
             try {
               const config = vscode.workspace.getConfiguration(CONFIG_SECTION);
               await config.update(
@@ -515,11 +410,14 @@ export class HypothesisCanvasChatPanel {
                 message.apiKey,
                 vscode.ConfigurationTarget.Global
               );
-              this._initializeLlmClients();
+
+              const status = await this._llmService.initializeLlmClients();
               webview.postMessage({
                 command: "updateStatus",
-                status: "success",
-                message: `Settings saved successfully. Using ${message.llm}.`,
+                status: status.initialized ? "success" : "error",
+                message: status.initialized
+                  ? `Settings saved successfully. Using ${message.llm}.`
+                  : `Error: ${status.errorMessage}`,
               });
             } catch (error) {
               console.error("Error saving settings:", error);
@@ -532,200 +430,54 @@ export class HypothesisCanvasChatPanel {
             break;
 
           case "sendMessage":
-            console.log(
-              `Message from webview (using ${this._selectedLlm}):`,
-              text
-            );
-
-            let responseText = "";
-            let errorMessage: string | undefined;
-
-            const basePrompt = `You are an assistant helping a user build a Hypothesis Canvas. The user's request is: "${text}". Provide a helpful response to assist them.`;
-
             try {
-              switch (this._selectedLlm) {
-                case "Gemini":
-                  if (!this._genAI) {
-                    errorMessage =
-                      "Gemini client not initialized. Check API Key setting.";
-                    break;
-                  }
-                  const safetySettings = [
-                    {
-                      category: HarmCategory.HARM_CATEGORY_HARASSMENT,
-                      threshold: HarmBlockThreshold.BLOCK_MEDIUM_AND_ABOVE,
-                    },
-                    {
-                      category: HarmCategory.HARM_CATEGORY_HATE_SPEECH,
-                      threshold: HarmBlockThreshold.BLOCK_MEDIUM_AND_ABOVE,
-                    },
-                    {
-                      category: HarmCategory.HARM_CATEGORY_SEXUALLY_EXPLICIT,
-                      threshold: HarmBlockThreshold.BLOCK_MEDIUM_AND_ABOVE,
-                    },
-                    {
-                      category: HarmCategory.HARM_CATEGORY_DANGEROUS_CONTENT,
-                      threshold: HarmBlockThreshold.BLOCK_MEDIUM_AND_ABOVE,
-                    },
-                  ];
-                  const model = this._genAI.getGenerativeModel({
-                    model: GEMINI_MODEL_NAME,
-                    safetySettings,
-                  });
-                  const result = await model.generateContent(basePrompt);
-                  responseText = result.response.text();
-                  break;
-
-                case "Claude":
-                  if (!this._anthropic) {
-                    errorMessage =
-                      "Claude client not initialized. Check API Key setting.";
-                    break;
-                  }
-                  const claudeResponse = await this._anthropic.messages.create({
-                    model: CLAUDE_MODEL_NAME,
-                    max_tokens: 1024,
-                    messages: [{ role: "user", content: basePrompt }],
-                  });
-                  if (
-                    claudeResponse.content &&
-                    claudeResponse.content.length > 0 &&
-                    claudeResponse.content[0].type === "text"
-                  ) {
-                    responseText = claudeResponse.content[0].text;
-                  } else {
-                    errorMessage =
-                      "Received unexpected response format from Claude.";
-                  }
-                  break;
-
-                case "OpenAI":
-                  if (!this._openai) {
-                    errorMessage =
-                      "OpenAI client not initialized. Check API Key setting.";
-                    break;
-                  }
-                  const openaiResponse =
-                    await this._openai.chat.completions.create({
-                      model: OPENAI_MODEL_NAME,
-                      messages: [{ role: "user", content: basePrompt }],
-                    });
-                  responseText =
-                    openaiResponse.choices[0]?.message?.content || "";
-                  break;
-
-                default:
-                  errorMessage = `Selected LLM (${this._selectedLlm}) is not supported for sending messages.`;
-              }
-            } catch (error: any) {
-              console.error(`Error calling ${this._selectedLlm} API:`, error);
-              errorMessage = `An error occurred while contacting ${this._selectedLlm}.`;
-              if (error instanceof Error) {
-                errorMessage += ` ${error.message}`;
-              }
-              if (error.message?.includes("API key") || error.status === 401) {
-                errorMessage = `Invalid ${this._selectedLlm} API Key. Please check your settings.`;
-              }
-            }
-
-            if (errorMessage) {
-              console.error(errorMessage);
-              webview.postMessage({ command: "showError", text: errorMessage });
-            } else {
-              console.log(`${this._selectedLlm} Response:`, responseText);
+              const basePrompt = `You are an assistant helping a user build a Hypothesis Canvas. The user's request is: "${text}". Provide a helpful response to assist them.`;
+              const responseText = await this._llmService.generateResponse(basePrompt);
               webview.postMessage({
                 command: "addMessage",
-                sender: this._selectedLlm,
+                sender: this._llmService.selectedLlm,
                 text: responseText,
+              });
+            } catch (error: any) {
+              console.error("Error in chat message:", error);
+              webview.postMessage({
+                command: "showError",
+                text: error.message,
               });
             }
             break;
 
           case "editWithAI":
-            const editor = vscode.window.activeTextEditor;
-            if (!editor) {
-              vscode.window.showErrorMessage("アクティブなエディタが見つかりません。");
-              return;
-            }
-            if (editor.document.languageId !== "markdown") {
-              vscode.window.showErrorMessage(
-                "アクティブなエディタがMarkdownファイルではありません。"
-              );
-              return;
-            }
-
-            const document = editor.document;
-            const selection = editor.selection;
-            let textToEdit: string;
-            let editRange: vscode.Range;
-
-            // 選択範囲があれば、その範囲のテキストを編集
-            if (!selection.isEmpty) {
-              textToEdit = document.getText(selection);
-              editRange = selection;
-            } else {
-              // 選択範囲がない場合は、ファイル全体を編集
-              textToEdit = document.getText();
-              editRange = new vscode.Range(
-                document.positionAt(0),
-                document.positionAt(document.getText().length)
-              );
-            }
-
             try {
-              // LLMにテキスト編集を依頼
-              let editPrompt = `以下のMarkdownテキストを編集してください。ユーザーの意図: ${message.text}\n\n${textToEdit}`;
-              let editedText = "";
-
-              switch (this._selectedLlm) {
-                case "Gemini":
-                  if (!this._genAI) {
-                    throw new Error("Gemini client not initialized");
-                  }
-                  const model = this._genAI.getGenerativeModel({
-                    model: GEMINI_MODEL_NAME,
-                  });
-                  const result = await model.generateContent(editPrompt);
-                  editedText = result.response.text();
-                  break;
-
-                case "Claude":
-                  if (!this._anthropic) {
-                    throw new Error("Claude client not initialized");
-                  }
-                  const claudeResponse = await this._anthropic.messages.create({
-                    model: CLAUDE_MODEL_NAME,
-                    max_tokens: 1024,
-                    messages: [{ role: "user", content: editPrompt }],
-                  });
-                  if (
-                    claudeResponse.content &&
-                    claudeResponse.content.length > 0 &&
-                    claudeResponse.content[0].type === "text"
-                  ) {
-                    editedText = claudeResponse.content[0].text;
-                  }
-                  break;
-
-                case "OpenAI":
-                  if (!this._openai) {
-                    throw new Error("OpenAI client not initialized");
-                  }
-                  const openaiResponse = await this._openai.chat.completions.create({
-                    model: OPENAI_MODEL_NAME,
-                    messages: [{ role: "user", content: editPrompt }],
-                  });
-                  editedText = openaiResponse.choices[0]?.message?.content || "";
-                  break;
+              const editor = vscode.window.activeTextEditor;
+              if (!editor) {
+                throw new Error("アクティブなエディタが見つかりません。");
+              }
+              if (editor.document.languageId !== "markdown") {
+                throw new Error("アクティブなエディタがMarkdownファイルではありません。");
               }
 
-              if (editedText) {
-                // 編集をドキュメントに適用
-                await editor.edit(editBuilder => {
-                  editBuilder.replace(editRange, editedText);
-                });
-                vscode.window.showInformationMessage("テキストを編集しました。");
-              }
+              const document = editor.document;
+              const selection = editor.selection;
+              const textToEdit = !selection.isEmpty
+                ? document.getText(selection)
+                : document.getText();
+              const editRange = !selection.isEmpty
+                ? selection
+                : new vscode.Range(
+                    document.positionAt(0),
+                    document.positionAt(document.getText().length)
+                  );
+
+              const editedText = await this._llmService.editMarkdownText(
+                textToEdit,
+                message.text
+              );
+
+              await editor.edit(editBuilder => {
+                editBuilder.replace(editRange, editedText);
+              });
+              vscode.window.showInformationMessage("テキストを編集しました。");
             } catch (error: any) {
               console.error("Error editing text:", error);
               vscode.window.showErrorMessage(

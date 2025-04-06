@@ -3,24 +3,12 @@ import * as path from "path";
 import { getUri } from "../utils/getUri";
 import { getNonce } from "../utils/getNonce";
 import {
-  GoogleGenerativeAI,
-  HarmCategory,
-  HarmBlockThreshold,
-} from "@google/generative-ai";
-import Anthropic from "@anthropic-ai/sdk";
-import OpenAI from "openai";
+  LlmService,
+  LlmType,
+  CONFIG_SECTION,
+  SELECTED_LLM_CONFIG
+} from "../services/LlmService";
 
-const CONFIG_SECTION = "textusm.hypothesisCanvas";
-const GEMINI_API_KEY_CONFIG = "geminiApiKey";
-const CLAUDE_API_KEY_CONFIG = "claudeApiKey";
-const OPENAI_API_KEY_CONFIG = "openaiApiKey";
-const SELECTED_LLM_CONFIG = "selectedLlm";
-
-const GEMINI_MODEL_NAME = "gemini-1.5-flash";
-const CLAUDE_MODEL_NAME = "claude-3-haiku-20240307";
-const OPENAI_MODEL_NAME = "gpt-4o-mini";
-
-type LlmType = "Gemini" | "Claude" | "OpenAI";
 
 export class HypothesisCanvasViewProvider implements vscode.WebviewViewProvider {
   public static readonly viewType = 'hypothesisCanvasView';
@@ -29,14 +17,11 @@ export class HypothesisCanvasViewProvider implements vscode.WebviewViewProvider 
   private _extensionUri: vscode.Uri;
   private _disposables: vscode.Disposable[] = [];
 
-  private _genAI: GoogleGenerativeAI | undefined;
-  private _anthropic: Anthropic | undefined;
-  private _openai: OpenAI | undefined;
-  private _selectedLlm: LlmType = "Gemini";
+  private readonly _llmService: LlmService;
 
   constructor(extensionUri: vscode.Uri) {
     this._extensionUri = extensionUri;
-    this._initializeLlmClients();
+    this._llmService = new LlmService();
   }
 
   public resolveWebviewView(
@@ -58,94 +43,24 @@ export class HypothesisCanvasViewProvider implements vscode.WebviewViewProvider 
     this._setWebviewMessageListener(webviewView.webview);
 
     // Configuration change listener
+    // 設定変更のリスナーを追加
     vscode.workspace.onDidChangeConfiguration(
-      (e) => {
-        const affectsConfig = (key: string) =>
-          e.affectsConfiguration(`${CONFIG_SECTION}.${key}`);
-        if (
-          affectsConfig(GEMINI_API_KEY_CONFIG) ||
-          affectsConfig(CLAUDE_API_KEY_CONFIG) ||
-          affectsConfig(OPENAI_API_KEY_CONFIG) ||
-          affectsConfig(SELECTED_LLM_CONFIG)
-        ) {
-          this._initializeLlmClients();
-          if (this._view) {
-            this._view.webview.html = this._getWebviewContent(this._view.webview);
-          }
+      () => {
+        if (this._view) {
+          const status = this._llmService.initializeLlmClients();
+          this._view.webview.postMessage({
+            command: "updateStatus",
+            status: status.initialized ? "success" : "error",
+            message: status.initialized
+              ? `Connected to ${this._llmService.selectedLlm}`
+              : `Error: ${status.errorMessage}`,
+          });
+          this._view.webview.html = this._getWebviewContent(this._view.webview);
         }
       },
       null,
       this._disposables
     );
-  }
-
-  private _initializeLlmClients() {
-    const config = vscode.workspace.getConfiguration(CONFIG_SECTION);
-    this._selectedLlm = config.get<LlmType>(SELECTED_LLM_CONFIG) || "Gemini";
-
-    this._genAI = undefined;
-    this._anthropic = undefined;
-    this._openai = undefined;
-
-    let apiKey: string | undefined;
-    let clientInitialized = false;
-    let errorMessage: string | undefined;
-
-    try {
-      switch (this._selectedLlm) {
-        case "Gemini":
-          apiKey = config.get<string>(GEMINI_API_KEY_CONFIG);
-          if (apiKey) {
-            this._genAI = new GoogleGenerativeAI(apiKey);
-            console.log("Gemini client initialized.");
-            clientInitialized = true;
-          } else {
-            errorMessage = "Gemini API Key not configured.";
-          }
-          break;
-        case "Claude":
-          apiKey = config.get<string>(CLAUDE_API_KEY_CONFIG);
-          if (apiKey) {
-            this._anthropic = new Anthropic({ apiKey });
-            console.log("Claude client initialized.");
-            clientInitialized = true;
-          } else {
-            errorMessage = "Claude API Key not configured.";
-          }
-          break;
-        case "OpenAI":
-          apiKey = config.get<string>(OPENAI_API_KEY_CONFIG);
-          if (apiKey) {
-            this._openai = new OpenAI({ apiKey });
-            console.log("OpenAI client initialized.");
-            clientInitialized = true;
-          } else {
-            errorMessage = "OpenAI API Key not configured.";
-          }
-          break;
-        default:
-          errorMessage = `Unsupported LLM selected: ${this._selectedLlm}`;
-          console.warn(errorMessage);
-      }
-    } catch (error: any) {
-      errorMessage = `Error initializing ${this._selectedLlm} client: ${error.message}`;
-      console.error(errorMessage, error);
-    }
-
-    if (!clientInitialized && errorMessage && this._view) {
-      console.warn(`${errorMessage} Client not initialized.`);
-      this._view.webview.postMessage({
-        command: "updateStatus",
-        status: "error",
-        message: `Error: ${errorMessage} Please check your settings.`,
-      });
-    } else if (clientInitialized && this._view) {
-      this._view.webview.postMessage({
-        command: "updateStatus",
-        status: "success",
-        message: `Connected to ${this._selectedLlm}`,
-      });
-    }
   }
 
   private _getWebviewContent(webview: vscode.Webview): string {
@@ -160,8 +75,8 @@ export class HypothesisCanvasViewProvider implements vscode.WebviewViewProvider 
     const stylesUri = getUri(webview, this._extensionUri, ["dist", "webview.css"]);
 
     // Get current configuration
+    const currentLlm = this._llmService.selectedLlm;
     const config = vscode.workspace.getConfiguration(CONFIG_SECTION);
-    const currentLlm = config.get<LlmType>(SELECTED_LLM_CONFIG) || "Gemini";
     const currentApiKey = config.get<string>(`${currentLlm.toLowerCase()}ApiKey`) || "";
 
     return /*html*/ `<!DOCTYPE html>
@@ -294,10 +209,10 @@ export class HypothesisCanvasViewProvider implements vscode.WebviewViewProvider 
               buttonContainer.className = 'action-buttons';
 
               const insertButton = document.createElement('vscode-button');
-              insertButton.textContent = 'Insert to Markdown';
+              insertButton.textContent = 'Edit with AI';
               insertButton.appearance = 'secondary';
               insertButton.addEventListener('click', () => {
-                vscode.postMessage({ command: 'insertToMarkdown', text: text });
+                vscode.postMessage({ command: 'editWithAI', text: text });
               });
               buttonContainer.appendChild(insertButton);
               messageContainer.appendChild(buttonContainer);
@@ -360,8 +275,7 @@ export class HypothesisCanvasViewProvider implements vscode.WebviewViewProvider 
 
         switch (command) {
           case "getLlmApiKey":
-            const config = vscode.workspace.getConfiguration(CONFIG_SECTION);
-            const apiKey = config.get<string>(
+            const apiKey = vscode.workspace.getConfiguration(CONFIG_SECTION).get<string>(
               `${message.llm.toLowerCase()}ApiKey`
             );
             webview.postMessage({
@@ -374,224 +288,82 @@ export class HypothesisCanvasViewProvider implements vscode.WebviewViewProvider 
             try {
               const config = vscode.workspace.getConfiguration(CONFIG_SECTION);
               await config.update(
-                SELECTED_LLM_CONFIG,
-                message.llm,
-                vscode.ConfigurationTarget.Global
-              );
-              await config.update(
                 `${message.llm.toLowerCase()}ApiKey`,
                 message.apiKey,
                 vscode.ConfigurationTarget.Global
               );
-              this._initializeLlmClients();
+              const status = await this._llmService.initializeLlmClients();
               webview.postMessage({
                 command: "updateStatus",
-                status: "success",
-                message: `Settings saved successfully. Using ${message.llm}.`,
+                status: status.initialized ? "success" : "error",
+                message: status.initialized
+                  ? `設定を保存しました。${message.llm}を使用します。`
+                  : `エラー: ${status.errorMessage}`,
               });
             } catch (error) {
               console.error("Error saving settings:", error);
               webview.postMessage({
                 command: "updateStatus",
                 status: "error",
-                message: "Error saving settings. Please try again.",
+                message: "設定の保存に失敗しました。もう一度お試しください。",
               });
             }
             break;
 
           case "sendMessage":
-            console.log(
-              `Message from webview (using ${this._selectedLlm}):`,
-              text
-            );
-
-            let responseText = "";
-            let errorMessage: string | undefined;
-
-            const basePrompt = `You are an assistant helping a user build a Hypothesis Canvas. The user's request is: "${text}". Provide a helpful response to assist them.`;
-
             try {
-              switch (this._selectedLlm) {
-                case "Gemini":
-                  if (!this._genAI) {
-                    errorMessage =
-                      "Gemini client not initialized. Check API Key setting.";
-                    break;
-                  }
-                  const safetySettings = [
-                    {
-                      category: HarmCategory.HARM_CATEGORY_HARASSMENT,
-                      threshold: HarmBlockThreshold.BLOCK_MEDIUM_AND_ABOVE,
-                    },
-                    {
-                      category: HarmCategory.HARM_CATEGORY_HATE_SPEECH,
-                      threshold: HarmBlockThreshold.BLOCK_MEDIUM_AND_ABOVE,
-                    },
-                    {
-                      category: HarmCategory.HARM_CATEGORY_SEXUALLY_EXPLICIT,
-                      threshold: HarmBlockThreshold.BLOCK_MEDIUM_AND_ABOVE,
-                    },
-                    {
-                      category: HarmCategory.HARM_CATEGORY_DANGEROUS_CONTENT,
-                      threshold: HarmBlockThreshold.BLOCK_MEDIUM_AND_ABOVE,
-                    },
-                  ];
-                  const model = this._genAI.getGenerativeModel({
-                    model: GEMINI_MODEL_NAME,
-                    safetySettings,
-                  });
-                  const result = await model.generateContent(basePrompt);
-                  responseText = result.response.text();
-                  break;
-
-                case "Claude":
-                  if (!this._anthropic) {
-                    errorMessage =
-                      "Claude client not initialized. Check API Key setting.";
-                    break;
-                  }
-                  const claudeResponse = await this._anthropic.messages.create({
-                    model: CLAUDE_MODEL_NAME,
-                    max_tokens: 1024,
-                    messages: [{ role: "user", content: basePrompt }],
-                  });
-                  if (
-                    claudeResponse.content &&
-                    claudeResponse.content.length > 0 &&
-                    claudeResponse.content[0].type === "text"
-                  ) {
-                    responseText = claudeResponse.content[0].text;
-                  } else {
-                    errorMessage =
-                      "Received unexpected response format from Claude.";
-                  }
-                  break;
-
-                case "OpenAI":
-                  if (!this._openai) {
-                    errorMessage =
-                      "OpenAI client not initialized. Check API Key setting.";
-                    break;
-                  }
-                  const openaiResponse =
-                    await this._openai.chat.completions.create({
-                      model: OPENAI_MODEL_NAME,
-                      messages: [{ role: "user", content: basePrompt }],
-                    });
-                  responseText =
-                    openaiResponse.choices[0]?.message?.content || "";
-                  break;
-
-                default:
-                  errorMessage = `Selected LLM (${this._selectedLlm}) is not supported for sending messages.`;
-              }
-            } catch (error: any) {
-              console.error(`Error calling ${this._selectedLlm} API:`, error);
-              errorMessage = `An error occurred while contacting ${this._selectedLlm}.`;
-              if (error instanceof Error) {
-                errorMessage += ` ${error.message}`;
-              }
-              if (error.message?.includes("API key") || error.status === 401) {
-                errorMessage = `Invalid ${this._selectedLlm} API Key. Please check your settings.`;
-              }
-            }
-
-            if (errorMessage) {
-              console.error(errorMessage);
-              webview.postMessage({ command: "showError", text: errorMessage });
-            } else {
-              console.log(`${this._selectedLlm} Response:`, responseText);
+              const basePrompt = `You are an assistant helping a user build a Hypothesis Canvas. The user's request is: "${text}". Provide a helpful response to assist them.`;
+              const responseText = await this._llmService.generateResponse(basePrompt);
               webview.postMessage({
                 command: "addMessage",
-                sender: this._selectedLlm,
+                sender: this._llmService.selectedLlm,
                 text: responseText,
+              });
+            } catch (error: any) {
+              console.error("Error in chat message:", error);
+              webview.postMessage({
+                command: "showError",
+                text: error.message,
               });
             }
             break;
 
-          case "insertToMarkdown":
-            const editor = vscode.window.activeTextEditor;
-            if (!editor) {
-              vscode.window.showErrorMessage("No active text editor found.");
-              return;
-            }
-            if (editor.document.languageId !== "markdown") {
-              vscode.window.showErrorMessage(
-                "The active editor is not a Markdown file."
-              );
-              return;
-            }
-
-            const document = editor.document;
-            const textToInsert = message.text;
-
-            const sections: { label: string; line: number }[] = [];
-            for (let i = 0; i < document.lineCount; i++) {
-              const line = document.lineAt(i);
-              if (line.text.startsWith("## ")) {
-                sections.push({
-                  label: line.text.substring(3).trim(),
-                  line: i,
-                });
+          case "editWithAI":
+            try {
+              const editor = vscode.window.activeTextEditor;
+              if (!editor) {
+                throw new Error("アクティブなエディタが見つかりません。");
               }
-            }
+              if (editor.document.languageId !== "markdown") {
+                throw new Error("アクティブなエディタがMarkdownファイルではありません。");
+              }
 
-            if (sections.length === 0) {
-              const endPosition = new vscode.Position(document.lineCount, 0);
-              editor
-                .edit((editBuilder) => {
-                  editBuilder.insert(endPosition, `\n\n${textToInsert}\n`);
-                })
-                .then((success) => {
-                  if (success) {
-                    vscode.window.showInformationMessage(
-                      "Text inserted at the end of the file."
-                    );
-                  } else {
-                    vscode.window.showErrorMessage("Failed to insert text.");
-                  }
-                });
-              return;
-            }
+              const document = editor.document;
+              const selection = editor.selection;
+              const textToEdit = !selection.isEmpty
+                ? document.getText(selection)
+                : document.getText();
+              const editRange = !selection.isEmpty
+                ? selection
+                : new vscode.Range(
+                    document.positionAt(0),
+                    document.positionAt(document.getText().length)
+                  );
 
-            const selectedSection = await vscode.window.showQuickPick(
-              sections.map((s) => ({
-                label: s.label,
-                description: `Line ${s.line + 1}`,
-                line: s.line,
-              })),
-              { placeHolder: "Select the section to insert the text into" }
-            );
-
-            if (selectedSection) {
-              const insertPosition = new vscode.Position(
-                selectedSection.line + 1,
-                0
+              const editedText = await this._llmService.editMarkdownText(
+                textToEdit,
+                message.text
               );
 
-              editor
-                .edit((editBuilder) => {
-                  editBuilder.insert(insertPosition, `\n${textToInsert}\n`);
-                })
-                .then((success) => {
-                  if (success) {
-                    vscode.window.showInformationMessage(
-                      `Text inserted under section: ${selectedSection.label}`
-                    );
-                    editor.revealRange(
-                      new vscode.Range(
-                        insertPosition,
-                        insertPosition.translate(
-                          textToInsert.split("\n").length + 1
-                        )
-                      )
-                    );
-                  } else {
-                    vscode.window.showErrorMessage("Failed to insert text.");
-                  }
-                });
-            } else {
-              vscode.window.showInformationMessage("Insertion cancelled.");
+              await editor.edit(editBuilder => {
+                editBuilder.replace(editRange, editedText);
+              });
+              vscode.window.showInformationMessage("テキストを編集しました。");
+            } catch (error: any) {
+              console.error("Error editing text:", error);
+              vscode.window.showErrorMessage(
+                `テキストの編集に失敗しました: ${error.message}`
+              );
             }
             break;
         }
