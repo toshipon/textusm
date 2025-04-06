@@ -35,6 +35,9 @@ export class ChatViewProvider implements vscode.WebviewViewProvider {
     this._fileOperations = new FileOperations();
     this._settingsManager = new SettingsManager(this._llmService);
 
+    // ファイルウォッチャーを設定し、disposablesに追加
+    this._disposables.push(this._fileOperations.setupFileWatcher());
+
     // ワークスペースの変更を監視
     vscode.workspace.onDidChangeWorkspaceFolders(() => {
       this._instructions = loadInstructions(vscode.workspace.workspaceFolders?.[0]?.uri.fsPath);
@@ -120,8 +123,12 @@ export class ChatViewProvider implements vscode.WebviewViewProvider {
     );
 
     // エディタの変更を監視
-    vscode.window.onDidChangeActiveTextEditor(() => {
+    vscode.window.onDidChangeActiveTextEditor(async (editor) => {
       this._updateSyncStatus();
+      // アクティブなエディタがMarkdownファイルの場合、TextUSMフォーマットを検証
+      if (editor?.document.languageId === 'markdown') {
+        await this._fileOperations.validateAndFormatContent(editor.document);
+      }
     }, null, this._disposables);
   }
 

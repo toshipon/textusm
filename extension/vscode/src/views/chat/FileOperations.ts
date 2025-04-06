@@ -1,7 +1,29 @@
 import * as vscode from "vscode";
 import * as path from "path";
+import { isValidTextUsm, formatTextUsm } from "../../utils/textUsmValidator";
 
 export class FileOperations {
+  /**
+   * TextUSMフォーマットの検証とフォーマット適用を行う
+   */
+  public async validateAndFormatContent(document: vscode.TextDocument): Promise<void> {
+    const text = document.getText();
+    if (!isValidTextUsm(text)) {
+      const formatted = formatTextUsm(text);
+      const edit = new vscode.WorkspaceEdit();
+      edit.replace(
+        document.uri,
+        new vscode.Range(
+          document.lineAt(0).range.start,
+          document.lineAt(document.lineCount - 1).range.end
+        ),
+        formatted
+      );
+      await vscode.workspace.applyEdit(edit);
+      await document.save();
+    }
+  }
+
   public async handleFileDropped(
     uris: string[],
     updateSyncStatus: () => void
@@ -9,7 +31,9 @@ export class FileOperations {
     if (uris && uris.length > 0) {
       const fileUri = vscode.Uri.file(uris[0]);
       try {
-        await vscode.window.showTextDocument(fileUri);
+        const document = await vscode.workspace.openTextDocument(fileUri);
+        await this.validateAndFormatContent(document);
+        await vscode.window.showTextDocument(document);
         updateSyncStatus();
         vscode.window.showInformationMessage(
           `ファイル "${fileUri.fsPath.split('/').pop()}" を開きました`
@@ -44,6 +68,13 @@ export class FileOperations {
         await vscode.workspace.applyEdit(edit);
         
         const document = await vscode.workspace.openTextDocument(fileUri);
+        // 新規ファイルの場合はデフォルトのTextUSMフォーマットを適用
+        const defaultContent = "Root\n  Child1\n  Child2";
+        const writeEdit = new vscode.WorkspaceEdit();
+        writeEdit.insert(fileUri, new vscode.Position(0, 0), defaultContent);
+        await vscode.workspace.applyEdit(writeEdit);
+        
+        await this.validateAndFormatContent(document);
         await vscode.window.showTextDocument(document);
         
         updateSyncStatus();
@@ -53,5 +84,16 @@ export class FileOperations {
         vscode.window.showErrorMessage('ファイルの作成に失敗しました。');
       }
     }
+  }
+
+  /**
+   * ファイル保存時のイベントハンドラを設定
+   */
+  public setupFileWatcher(): vscode.Disposable {
+    return vscode.workspace.onWillSaveTextDocument(async (e) => {
+      if (e.document.languageId === 'markdown') {
+        await this.validateAndFormatContent(e.document);
+      }
+    });
   }
 }
