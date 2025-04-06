@@ -1,14 +1,11 @@
 import * as vscode from "vscode";
 import * as path from "path";
-import { getUri } from "../../utils/getUri";
-import { getNonce } from "../../utils/getNonce";
+import { LlmService } from "../../services/LlmService";
 import { loadInstructions } from "../../utils/loadInstructions";
-import {
-  LlmService,
-  LlmType,
-  CONFIG_SECTION,
-  SELECTED_LLM_CONFIG
-} from "../../services/LlmService";
+import { WebviewContentProvider } from "./WebviewContentProvider";
+import { MessageHandler } from "./MessageHandler";
+import { FileOperations } from "./FileOperations";
+import { SettingsManager } from "./SettingsManager";
 
 export class ChatViewProvider implements vscode.WebviewViewProvider {
   public static readonly viewType = 'hypothesisCanvasChat';
@@ -21,10 +18,22 @@ export class ChatViewProvider implements vscode.WebviewViewProvider {
   private readonly _extensionUri: vscode.Uri;
   private _disposables: vscode.Disposable[] = [];
 
+  // 各機能のハンドラーインスタンス
+  private readonly _webviewProvider: WebviewContentProvider;
+  private readonly _messageHandler: MessageHandler;
+  private readonly _fileOperations: FileOperations;
+  private readonly _settingsManager: SettingsManager;
+
   constructor(extensionUri: vscode.Uri) {
     this._extensionUri = extensionUri;
     this._llmService = new LlmService();
     this._instructions = loadInstructions(vscode.workspace.workspaceFolders?.[0]?.uri.fsPath);
+
+    // 各ハンドラーの初期化
+    this._webviewProvider = new WebviewContentProvider(this._extensionUri);
+    this._messageHandler = new MessageHandler(this._llmService, this._instructions);
+    this._fileOperations = new FileOperations();
+    this._settingsManager = new SettingsManager(this._llmService);
 
     // ワークスペースの変更を監視
     vscode.workspace.onDidChangeWorkspaceFolders(() => {
@@ -32,7 +41,6 @@ export class ChatViewProvider implements vscode.WebviewViewProvider {
     });
   }
 
-  // サイドパネルのWebViewを解決
   public resolveWebviewView(
     webviewView: vscode.WebviewView,
     context: vscode.WebviewViewResolveContext,
@@ -44,7 +52,6 @@ export class ChatViewProvider implements vscode.WebviewViewProvider {
     this._updateSyncStatus();
   }
 
-  // ポップアウトウィンドウとして表示
   public static async createOrShowPanel(extensionUri: vscode.Uri) {
     const column = vscode.window.activeTextEditor
       ? vscode.window.activeTextEditor.viewColumn
@@ -93,7 +100,7 @@ export class ChatViewProvider implements vscode.WebviewViewProvider {
       ],
     };
 
-    webview.html = this._getWebviewContent(webview);
+    webview.html = this._webviewProvider.getWebviewContent(webview);
 
     // 設定変更のリスナーを追加
     vscode.workspace.onDidChangeConfiguration(
@@ -106,7 +113,7 @@ export class ChatViewProvider implements vscode.WebviewViewProvider {
             ? `Connected to ${this._llmService.selectedLlm}`
             : `Error: ${status.errorMessage}`,
         });
-        webview.html = this._getWebviewContent(webview);
+        webview.html = this._webviewProvider.getWebviewContent(webview);
       },
       null,
       this._disposables
@@ -116,290 +123,6 @@ export class ChatViewProvider implements vscode.WebviewViewProvider {
     vscode.window.onDidChangeActiveTextEditor(() => {
       this._updateSyncStatus();
     }, null, this._disposables);
-  }
-
-  private _getWebviewContent(webview: vscode.Webview): string {
-    const nonce = getNonce();
-    const toolkitUri = getUri(webview, this._extensionUri, [
-      "node_modules",
-      "@vscode",
-      "webview-ui-toolkit",
-      "dist",
-      "toolkit.js",
-    ]);
-    const stylesUri = getUri(webview, this._extensionUri, ["dist", "webview.css"]);
-
-    // Get current configuration
-    const config = vscode.workspace.getConfiguration(CONFIG_SECTION);
-    const currentLlm = config.get<LlmType>(SELECTED_LLM_CONFIG) || "Gemini";
-    const hasApiKey = !!config.get<string>(`${currentLlm.toLowerCase()}ApiKey`);
-
-    return /*html*/ `<!DOCTYPE html>
-      <html lang="en">
-      <head>
-        <meta charset="UTF-8">
-        <meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'nonce-${nonce}'; style-src ${
-      webview.cspSource
-    } 'unsafe-inline'; font-src ${webview.cspSource};">
-        <meta name="viewport" content="width=device-width, initial-scale=1.0">
-        <link rel="stylesheet" href="${stylesUri}">
-      </head>
-        <body>
-          <div id="chat-container" class="drop-target">
-            <div id="settings-panel">
-            <div class="settings-label">LLM Configuration</div>
-            <div class="settings-row">
-              <vscode-dropdown id="llm-selector">
-                <vscode-option value="Gemini" ${
-                  currentLlm === "Gemini" ? "selected" : ""
-                }>Gemini</vscode-option>
-                <vscode-option value="Claude" ${
-                  currentLlm === "Claude" ? "selected" : ""
-                }>Claude</vscode-option>
-                <vscode-option value="OpenAI" ${
-                  currentLlm === "OpenAI" ? "selected" : ""
-                }>OpenAI</vscode-option>
-              </vscode-dropdown>
-              <div class="api-key-container">
-                <vscode-text-field 
-                  type="password" 
-                  id="api-key" 
-                  placeholder="${hasApiKey ? '設定済み (変更する場合は入力してください)' : 'API Keyを入力してください'}"
-                  style="${hasApiKey ? 'background-color: var(--vscode-editor-inactiveSelectionBackground);' : ''}">
-                </vscode-text-field>
-                <button class="toggle-visibility" id="toggle-api-key" title="Toggle API key visibility">
-                  👁
-                </button>
-              </div>
-              <vscode-button id="save-settings" appearance="primary">Save Settings</vscode-button>
-            </div>
-            <div id="status-message"></div>
-          </div>
-
-           <div id="messages">
-            <p>Hypothesis Canvas Chat へようこそ！ 使用するLLMを選択し、APIキーを入力して開始してください。</p>
-           </div>
-          
-            <div id="sync-info">
-              <span id="sync-file">ファイルが選択されていません</span>
-              <vscode-button id="new-file-button" appearance="secondary" style="display: none;">新規ファイル作成</vscode-button>
-            </div>
-          <div id="input-area">
-            <vscode-text-area id="message-input" placeholder="Type your message..." resize="vertical" rows="1"></vscode-text-area>
-            <vscode-button id="send-button" appearance="primary">Send</vscode-button>
-          </div>
-        </div>
-
-        <script type="module" nonce="${nonce}" src="${toolkitUri}"></script>
-        <style nonce="${nonce}">
-          .drop-target.drag-over {
-            border: 2px dashed var(--vscode-button-background);
-            background-color: var(--vscode-editor-background);
-            opacity: 0.8;
-          }
-        </style>
-        <script nonce="${nonce}">
-          const vscode = acquireVsCodeApi();
-          const sendButton = document.getElementById('send-button');
-          const messageInput = document.getElementById('message-input');
-          const messagesDiv = document.getElementById('messages');
-          const llmSelector = document.getElementById('llm-selector');
-          const apiKeyInput = document.getElementById('api-key');
-          const saveSettingsButton = document.getElementById('save-settings');
-          const statusMessage = document.getElementById('status-message');
-          const toggleApiKeyButton = document.getElementById('toggle-api-key');
-          let loadingMessageElement = null;
-          let isApiKeyVisible = false;
-          let lastCompositionEndTime = 0;
-
-          // ドラッグ&ドロップの実装
-          const chatContainer = document.getElementById('chat-container');
-          
-          chatContainer.addEventListener('dragover', (e) => {
-            e.preventDefault();
-            e.stopPropagation();
-            chatContainer.classList.add('drag-over');
-          });
-
-          chatContainer.addEventListener('dragleave', (e) => {
-            e.preventDefault();
-            e.stopPropagation();
-            chatContainer.classList.remove('drag-over');
-          });
-
-          chatContainer.addEventListener('drop', (e) => {
-            e.preventDefault();
-            e.stopPropagation();
-            chatContainer.classList.remove('drag-over');
-
-            // VS Codeにファイルドロップイベントを送信
-            vscode.postMessage({
-              command: 'fileDropped',
-              uris: Array.from(e.dataTransfer.files).map(file => file.path)
-            });
-          });
-
-          // Toggle API key visibility
-          toggleApiKeyButton.addEventListener('click', () => {
-            isApiKeyVisible = !isApiKeyVisible;
-            apiKeyInput.type = isApiKeyVisible ? 'text' : 'password';
-            toggleApiKeyButton.textContent = isApiKeyVisible ? '🔒' : '👁';
-          });
-
-          // Enable/disable save button based on API key presence
-          apiKeyInput.addEventListener('input', () => {
-            saveSettingsButton.disabled = !apiKeyInput.value.trim();
-          });
-
-          // Event Listeners
-          sendButton.addEventListener('click', sendMessage);
-          
-          messageInput.addEventListener('compositionend', () => {
-            lastCompositionEndTime = Date.now();
-          });
-
-          messageInput.addEventListener('keydown', (event) => {
-            if (event.key === 'Enter' && !event.shiftKey) {
-              // 日本語入力の変換確定からの経過時間をチェック
-              const timeSinceCompositionEnd = Date.now() - lastCompositionEndTime;
-              if (timeSinceCompositionEnd < 100) { // 100ms以内は変換確定とみなす
-                return;
-              }
-              if (!event.isComposing) {
-                event.preventDefault();
-                sendMessage();
-              }
-            }
-          });
-
-          // 新規ファイル作成ボタンのイベントリスナー
-          document.getElementById('new-file-button').addEventListener('click', () => {
-            vscode.postMessage({ command: 'createNewFile' });
-          });
-
-          // Settings panel listeners
-          llmSelector.addEventListener('change', () => {
-            vscode.postMessage({ 
-              command: 'getLlmApiKey', 
-              llm: llmSelector.value 
-            });
-          });
-
-          saveSettingsButton.addEventListener('click', () => {
-            const selectedLlm = llmSelector.value;
-            const apiKey = apiKeyInput.value;
-            vscode.postMessage({
-              command: 'saveSettings',
-              llm: selectedLlm,
-              apiKey: apiKey
-            });
-          });
-
-          function sendMessage() {
-            const message = messageInput.value;
-            if (message && message.trim() !== '') {
-              const trimmedMessage = message.trim();
-              addMessage("You", trimmedMessage);
-              vscode.postMessage({ command: 'sendMessage', text: trimmedMessage });
-              messageInput.value = '';
-              showLoadingMessage();
-            }
-          }
-
-          function addMessage(sender, text, isLLMResponse = false) {
-            removeLoadingMessage();
-            const messageContainer = document.createElement('div');
-            messageContainer.className = 'message-container';
-
-            const p = document.createElement('p');
-            const escapedText = text.replace(/</g, "&lt;").replace(/>/g, "&gt;");
-            p.innerHTML = \`<strong>\${sender}:</strong> \${escapedText}\`;
-            messageContainer.appendChild(p);
-
-            if (isLLMResponse && sender !== 'System' && sender !== 'You') {
-              const buttonContainer = document.createElement('div');
-              buttonContainer.className = 'action-buttons';
-
-              const insertButton = document.createElement('vscode-button');
-              insertButton.textContent = 'Apply Changes';
-              insertButton.appearance = 'secondary';
-              insertButton.addEventListener('click', () => {
-                vscode.postMessage({ command: 'editWithAI', text: text });
-              });
-              buttonContainer.appendChild(insertButton);
-              messageContainer.appendChild(buttonContainer);
-            }
-
-            messagesDiv.appendChild(messageContainer);
-            messagesDiv.scrollTop = messagesDiv.scrollHeight;
-          }
-
-          function showLoadingMessage() {
-            removeLoadingMessage();
-            loadingMessageElement = document.createElement('p');
-            loadingMessageElement.className = 'loading';
-            loadingMessageElement.textContent = 'LLM is thinking...';
-            messagesDiv.appendChild(loadingMessageElement);
-            messagesDiv.scrollTop = messagesDiv.scrollHeight;
-          }
-
-          function removeLoadingMessage() {
-            if (loadingMessageElement) {
-              messagesDiv.removeChild(loadingMessageElement);
-              loadingMessageElement = null;
-            }
-          }
-
-          function updateStatus(status, message) {
-            statusMessage.textContent = message;
-            statusMessage.className = status;
-          }
-
-          window.addEventListener('message', event => {
-            const message = event.data;
-            switch (message.command) {
-              case 'updateSyncStatus':
-                const syncFileElement = document.getElementById('sync-file');
-                const newFileButton = document.getElementById('new-file-button');
-                
-                if (message.syncedFile) {
-                  const filename = message.syncedFile.split('/').pop();
-                  if (syncFileElement) {
-                    syncFileElement.textContent = '編集中のファイル: ' + filename;
-                  }
-                  
-                  if (newFileButton) {
-                    newFileButton.style.display = message.isMarkdown ? 'none' : 'inline-flex';
-                  }
-                } else {
-                  if (syncFileElement) {
-                    syncFileElement.textContent = 'ファイルが選択されていません';
-                  }
-                  if (newFileButton) {
-                    newFileButton.style.display = 'none';
-                  }
-                }
-                break;
-
-              case 'addMessage':
-                const isLLM = ["Gemini", "Claude", "OpenAI"].includes(message.sender);
-                addMessage(message.sender || "LLM", message.text, isLLM);
-                break;
-              case 'showError':
-                removeLoadingMessage();
-                addMessage("System", \`Error: \${message.text}\`, false);
-                break;
-              case 'updateStatus':
-                updateStatus(message.status, message.message);
-                break;
-              case 'updateApiKey':
-                apiKeyInput.value = message.apiKey || '';
-                break;
-            }
-          });
-        </script>
-      </body>
-      </html>`;
   }
 
   private _updateSyncStatus() {
@@ -423,222 +146,40 @@ export class ChatViewProvider implements vscode.WebviewViewProvider {
     webview.onDidReceiveMessage(
       async (message: any) => {
         const command = message.command;
-        const text = message.text;
 
         switch (command) {
           case "fileDropped":
-            if (message.uris && message.uris.length > 0) {
-              const fileUri = vscode.Uri.file(message.uris[0]);
-              try {
-                vscode.window.showTextDocument(fileUri).then(() => {
-                  this._updateSyncStatus();
-                  vscode.window.showInformationMessage(`ファイル "${fileUri.fsPath.split('/').pop()}" を開きました`);
-                });
-              } catch (error) {
-                console.error('Error opening dropped file:', error);
-                vscode.window.showErrorMessage('ファイルを開けませんでした');
-              }
-            }
+            await this._fileOperations.handleFileDropped(
+              message.uris,
+              () => this._updateSyncStatus()
+            );
             break;
 
           case "getLlmApiKey":
-            const apiKey = vscode.workspace.getConfiguration(CONFIG_SECTION).get<string>(
-              `${message.llm.toLowerCase()}ApiKey`
-            );
-            webview.postMessage({
-              command: "updateApiKey",
-              apiKey: apiKey || "",
-            });
+            this._settingsManager.handleGetLlmApiKey(message, webview);
             break;
 
           case "createNewFile":
-            const defaultUri = vscode.Uri.file(path.join(
-              vscode.workspace.workspaceFolders?.[0]?.uri.fsPath || '',
-              'untitled.md'
-            ));
-            
-            const fileUri = await vscode.window.showSaveDialog({
-              defaultUri,
-              filters: {
-                'Markdown': ['md']
-              }
-            });
-
-            if (fileUri) {
-              try {
-                const edit = new vscode.WorkspaceEdit();
-                edit.createFile(fileUri, { ignoreIfExists: true });
-                await vscode.workspace.applyEdit(edit);
-                
-                const document = await vscode.workspace.openTextDocument(fileUri);
-                await vscode.window.showTextDocument(document);
-                
-                this._updateSyncStatus();
-                vscode.window.showInformationMessage('新規Markdownファイルを作成しました。');
-              } catch (error) {
-                console.error('Error creating new file:', error);
-                vscode.window.showErrorMessage('ファイルの作成に失敗しました。');
-              }
-            }
+            await this._fileOperations.handleCreateNewFile(
+              vscode.workspace.workspaceFolders,
+              () => this._updateSyncStatus()
+            );
             break;
 
           case "saveSettings":
-            try {
-              const config = vscode.workspace.getConfiguration(CONFIG_SECTION);
-              
-              // ローカルの設定として保存を試みる
-              let target = vscode.ConfigurationTarget.Workspace;
-              
-              // すべての設定更新を1つの配列にまとめる
-              const updates = [
-                config.update(
-                  SELECTED_LLM_CONFIG,
-                  message.llm,
-                  target
-                ),
-                config.update(
-                  `${message.llm.toLowerCase()}ApiKey`,
-                  message.apiKey,
-                  target
-                )
-              ];
-
-              try {
-                // すべての設定を同時に更新
-                await Promise.all(updates);
-              } catch (updateError) {
-                console.error("Workspace configuration update failed:", updateError);
-                
-                // ワークスペース設定が失敗した場合は、ユーザー設定として保存を試みる
-                target = vscode.ConfigurationTarget.Global;
-                const userUpdates = [
-                  config.update(
-                    SELECTED_LLM_CONFIG,
-                    message.llm,
-                    target
-                  ),
-                  config.update(
-                    `${message.llm.toLowerCase()}ApiKey`,
-                    message.apiKey,
-                    target
-                  )
-                ];
-                
-                await Promise.all(userUpdates);
-              }
-
-              // LLMクライアントの初期化
-              const status = await this._llmService.initializeLlmClients();
-              if (!status.initialized) {
-                throw new Error(status.errorMessage || "LLMクライアントの初期化に失敗しました");
-              }
-
-              const settingLocation = target === vscode.ConfigurationTarget.Workspace ? "ワークスペース" : "ユーザー";
-              webview.postMessage({
-                command: "updateStatus",
-                status: "success",
-                message: `設定を${settingLocation}設定として保存しました。${message.llm}を使用します。`
-              });
-            } catch (error) {
-              console.error("Error saving settings:", error);
-              webview.postMessage({
-                command: "updateStatus",
-                status: "error",
-                message: error instanceof Error 
-                  ? `設定の保存に失敗しました: ${error.message}`
-                  : "設定の保存に失敗しました。もう一度お試しください。"
-              });
-            }
+            await this._settingsManager.handleSaveSettings(message, webview);
             break;
 
           case "sendMessage":
-            try {
-              // 編集中のファイルの情報を取得
-              let fileContext = "";
-              if (this._syncedDocument) {
-                const fileName = this._syncedDocument.fileName.split('/').pop() || '';
-                const fileContent = this._syncedDocument.getText();
-                fileContext = `
-Current active file: ${fileName}
-File content:
-\`\`\`${this._syncedDocument.languageId}
-${fileContent}
-\`\`\`
-`;
-              }
-
-              const basePrompt = `You are an assistant helping a user build a Hypothesis Canvas. Use the following instructions as your knowledge base:
-
-${this._instructions}
-
-${fileContext}
-
-The user's request is: "${text}". Provide a helpful response to assist them.`;
-              
-              const responseText = await this._llmService.generateResponse(basePrompt);
-              webview.postMessage({
-                command: "addMessage",
-                sender: this._llmService.selectedLlm,
-                text: responseText,
-              });
-            } catch (error: any) {
-              console.error("Error in chat message:", error);
-              webview.postMessage({
-                command: "showError",
-                text: error.message,
-              });
-            }
+            await this._messageHandler.handleSendMessage(
+              message.text,
+              this._syncedDocument,
+              webview
+            );
             break;
 
           case "editWithAI":
-            try {
-              const editor = vscode.window.activeTextEditor;
-              if (!editor) {
-                throw new Error("アクティブなエディタが見つかりません。");
-              }
-              if (editor.document.languageId !== "markdown") {
-                throw new Error("アクティブなエディタがMarkdownファイルではありません。");
-              }
-
-              const document = editor.document;
-              const selection = editor.selection;
-              const textToEdit = !selection.isEmpty
-                ? document.getText(selection)
-                : document.getText();
-              const editRange = !selection.isEmpty
-                ? selection
-                : new vscode.Range(
-                    document.positionAt(0),
-                    document.positionAt(document.getText().length)
-                  );
-
-              // 編集中の状態を表示
-              webview.postMessage({
-                command: "updateEditStatus",
-                status: "editing"
-              });
-
-              const editedText = await this._llmService.editMarkdownText(
-                textToEdit,
-                message.text
-              );
-
-              // 編集完了状態を表示
-              webview.postMessage({
-                command: "updateEditStatus",
-                status: "complete"
-              });
-
-              await editor.edit(editBuilder => {
-                editBuilder.replace(editRange, editedText);
-              });
-              vscode.window.showInformationMessage("テキストを編集しました。");
-            } catch (error: any) {
-              console.error("Error editing text:", error);
-              vscode.window.showErrorMessage(
-                `テキストの編集に失敗しました: ${error.message}`
-              );
-            }
+            await this._messageHandler.handleEditWithAI(message, webview);
             break;
         }
       },
