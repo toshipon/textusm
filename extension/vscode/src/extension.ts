@@ -1,19 +1,27 @@
 import * as vscode from "vscode";
 import { registerCommands } from "./commands";
 import { DiagramPanel } from "./panels/DiagramPanel";
-import { HypothesisCanvasViewProvider } from "./providers/HypothesisCanvasViewProvider";
+import { ChatViewProvider } from "./views/chat/ChatViewProvider";
 
 export function activate(context: vscode.ExtensionContext) {
   console.log("Activating TextUSM extension");
   registerCommands(context);
 
   // Register Hypothesis Canvas View Provider
-  const hypothesisCanvasProvider = new HypothesisCanvasViewProvider(context.extensionUri);
+  // Register Chat View Provider
+  const chatProvider = new ChatViewProvider(context.extensionUri);
   context.subscriptions.push(
     vscode.window.registerWebviewViewProvider(
-      HypothesisCanvasViewProvider.viewType,
-      hypothesisCanvasProvider
+      ChatViewProvider.viewType,
+      chatProvider
     )
+  );
+
+  // Register Chat Pop-out Command
+  context.subscriptions.push(
+    vscode.commands.registerCommand('hypothesisCanvas.openChat', () => {
+      ChatViewProvider.createOrShowPanel(context.extensionUri);
+    })
   );
   
   // エディタの切り替えを監視

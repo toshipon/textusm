@@ -44,8 +44,8 @@
     "views": {
       "textusm-explorer": [
         {
-          "id": "hypothesisCanvasView",
-          "name": "Hypothesis Canvas",
+          "id": "hypothesisCanvasChat",
+          "name": "Hypothesis Canvas Chat",
           "type": "webview"
         }
       ]
@@ -141,9 +141,10 @@
         "icon": "$(zoom-out)"
       },
       {
-        "command": "textusm.hypothesisCanvas.showChat",
+        "command": "hypothesisCanvas.openChat",
         "title": "TextUSM: Open Hypothesis Canvas Chat",
-        "category": "TextUSM"
+        "category": "TextUSM",
+        "icon": "$(comment-discussion)"
       }
     ],
     "configuration": {
