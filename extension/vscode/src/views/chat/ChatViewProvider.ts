@@ -132,7 +132,7 @@ export class ChatViewProvider implements vscode.WebviewViewProvider {
     // Get current configuration
     const config = vscode.workspace.getConfiguration(CONFIG_SECTION);
     const currentLlm = config.get<LlmType>(SELECTED_LLM_CONFIG) || "Gemini";
-    const currentApiKey = config.get<string>(`${currentLlm.toLowerCase()}ApiKey`) || "";
+    const hasApiKey = !!config.get<string>(`${currentLlm.toLowerCase()}ApiKey`);
 
     return /*html*/ `<!DOCTYPE html>
       <html lang="en">
@@ -164,7 +164,8 @@ export class ChatViewProvider implements vscode.WebviewViewProvider {
                 <vscode-text-field 
                   type="password" 
                   id="api-key" 
-                  placeholder="Enter API Key for selected LLM">
+                  placeholder="${hasApiKey ? '設定済み (変更する場合は入力してください)' : 'API Keyを入力してください'}"
+                  style="${hasApiKey ? 'background-color: var(--vscode-editor-inactiveSelectionBackground);' : ''}">
                 </vscode-text-field>
                 <button class="toggle-visibility" id="toggle-api-key" title="Toggle API key visibility">
                   👁
@@ -175,9 +176,9 @@ export class ChatViewProvider implements vscode.WebviewViewProvider {
             <div id="status-message"></div>
           </div>
 
-          <div id="messages">
-            <p>Welcome to Hypothesis Canvas Chat! Select your preferred LLM and enter your API key to get started.</p>
-          </div>
+           <div id="messages">
+            <p>Hypothesis Canvas Chat へようこそ！ 使用するLLMを選択し、APIキーを入力して開始してください。</p>
+           </div>
           
             <div id="sync-info">
               <span id="sync-file">ファイルが選択されていません</span>
@@ -320,7 +321,7 @@ export class ChatViewProvider implements vscode.WebviewViewProvider {
               buttonContainer.className = 'action-buttons';
 
               const insertButton = document.createElement('vscode-button');
-              insertButton.textContent = 'Edit with AI';
+              insertButton.textContent = 'Apply Changes';
               insertButton.appearance = 'secondary';
               insertButton.addEventListener('click', () => {
                 vscode.postMessage({ command: 'editWithAI', text: text });
@@ -484,42 +485,96 @@ export class ChatViewProvider implements vscode.WebviewViewProvider {
           case "saveSettings":
             try {
               const config = vscode.workspace.getConfiguration(CONFIG_SECTION);
-              await config.update(
-                SELECTED_LLM_CONFIG,
-                message.llm,
-                vscode.ConfigurationTarget.Global
-              );
-              await config.update(
-                `${message.llm.toLowerCase()}ApiKey`,
-                message.apiKey,
-                vscode.ConfigurationTarget.Global
-              );
+              
+              // ローカルの設定として保存を試みる
+              let target = vscode.ConfigurationTarget.Workspace;
+              
+              // すべての設定更新を1つの配列にまとめる
+              const updates = [
+                config.update(
+                  SELECTED_LLM_CONFIG,
+                  message.llm,
+                  target
+                ),
+                config.update(
+                  `${message.llm.toLowerCase()}ApiKey`,
+                  message.apiKey,
+                  target
+                )
+              ];
 
+              try {
+                // すべての設定を同時に更新
+                await Promise.all(updates);
+              } catch (updateError) {
+                console.error("Workspace configuration update failed:", updateError);
+                
+                // ワークスペース設定が失敗した場合は、ユーザー設定として保存を試みる
+                target = vscode.ConfigurationTarget.Global;
+                const userUpdates = [
+                  config.update(
+                    SELECTED_LLM_CONFIG,
+                    message.llm,
+                    target
+                  ),
+                  config.update(
+                    `${message.llm.toLowerCase()}ApiKey`,
+                    message.apiKey,
+                    target
+                  )
+                ];
+                
+                await Promise.all(userUpdates);
+              }
+
+              // LLMクライアントの初期化
               const status = await this._llmService.initializeLlmClients();
+              if (!status.initialized) {
+                throw new Error(status.errorMessage || "LLMクライアントの初期化に失敗しました");
+              }
+
+              const settingLocation = target === vscode.ConfigurationTarget.Workspace ? "ワークスペース" : "ユーザー";
               webview.postMessage({
                 command: "updateStatus",
-                status: status.initialized ? "success" : "error",
-                message: status.initialized
-                  ? `設定を保存しました。${message.llm}を使用します。`
-                  : `エラー: ${status.errorMessage}`,
+                status: "success",
+                message: `設定を${settingLocation}設定として保存しました。${message.llm}を使用します。`
               });
             } catch (error) {
               console.error("Error saving settings:", error);
               webview.postMessage({
                 command: "updateStatus",
                 status: "error",
-                message: "設定の保存に失敗しました。もう一度お試しください。",
+                message: error instanceof Error 
+                  ? `設定の保存に失敗しました: ${error.message}`
+                  : "設定の保存に失敗しました。もう一度お試しください。"
               });
             }
             break;
 
           case "sendMessage":
             try {
+              // 編集中のファイルの情報を取得
+              let fileContext = "";
+              if (this._syncedDocument) {
+                const fileName = this._syncedDocument.fileName.split('/').pop() || '';
+                const fileContent = this._syncedDocument.getText();
+                fileContext = `
+Current active file: ${fileName}
+File content:
+\`\`\`${this._syncedDocument.languageId}
+${fileContent}
+\`\`\`
+`;
+              }
+
               const basePrompt = `You are an assistant helping a user build a Hypothesis Canvas. Use the following instructions as your knowledge base:
 
 ${this._instructions}
 
+${fileContext}
+
 The user's request is: "${text}". Provide a helpful response to assist them.`;
+              
               const responseText = await this._llmService.generateResponse(basePrompt);
               webview.postMessage({
                 command: "addMessage",
@@ -557,10 +612,22 @@ The user's request is: "${text}". Provide a helpful response to assist them.`;
                     document.positionAt(document.getText().length)
                   );
 
+              // 編集中の状態を表示
+              webview.postMessage({
+                command: "updateEditStatus",
+                status: "editing"
+              });
+
               const editedText = await this._llmService.editMarkdownText(
                 textToEdit,
                 message.text
               );
+
+              // 編集完了状態を表示
+              webview.postMessage({
+                command: "updateEditStatus",
+                status: "complete"
+              });
 
               await editor.edit(editBuilder => {
                 editBuilder.replace(editRange, editedText);

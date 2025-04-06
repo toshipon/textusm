@@ -7,7 +7,7 @@ import {
 import Anthropic from "@anthropic-ai/sdk";
 import OpenAI from "openai";
 
-export const CONFIG_SECTION = "textusm.hypothesisCanvas";
+export const CONFIG_SECTION = "hypothesisCanvas";
 export const GEMINI_API_KEY_CONFIG = "geminiApiKey";
 export const CLAUDE_API_KEY_CONFIG = "claudeApiKey";
 export const OPENAI_API_KEY_CONFIG = "openaiApiKey";
@@ -127,7 +127,9 @@ export class LlmService {
             safetySettings,
           });
           const result = await model.generateContent(prompt);
-          return result.response.text();
+          const text = result.response.text();
+          // UTF-8でエンコード/デコードして日本語文字を適切に処理
+          return Buffer.from(text).toString('utf-8');
 
         case "Claude":
           if (!this._anthropic) {
@@ -143,7 +145,8 @@ export class LlmService {
             claudeResponse.content.length > 0 &&
             claudeResponse.content[0].type === "text"
           ) {
-            return claudeResponse.content[0].text;
+            const text = claudeResponse.content[0].text;
+            return Buffer.from(text).toString('utf-8');
           }
           throw new Error("Received unexpected response format from Claude");
 
@@ -159,7 +162,7 @@ export class LlmService {
           if (!content) {
             throw new Error("Received empty response from OpenAI");
           }
-          return content;
+          return Buffer.from(content).toString('utf-8');
 
         default:
           throw new Error(`Selected LLM (${this._selectedLlm}) is not supported`);
