@@ -31,7 +31,7 @@ export class ChatViewProvider implements vscode.WebviewViewProvider {
 
     // 各ハンドラーの初期化
     this._webviewProvider = new WebviewContentProvider(this._extensionUri);
-    this._messageHandler = new MessageHandler(this._llmService, this._instructions);
+    this._messageHandler = new MessageHandler(this._llmService, this._instructions, this._extensionUri);
     this._fileOperations = new FileOperations();
     this._settingsManager = new SettingsManager(this._llmService);
 
@@ -79,6 +79,7 @@ export class ChatViewProvider implements vscode.WebviewViewProvider {
       }
     );
 
+    // パネルプロバイダーの初期化
     const provider = new ChatViewProvider(extensionUri);
     provider.initializeWebview(panel.webview);
     provider._setWebviewMessageListener(panel.webview);
@@ -154,40 +155,44 @@ export class ChatViewProvider implements vscode.WebviewViewProvider {
       async (message: any) => {
         const command = message.command;
 
-        switch (command) {
-          case "fileDropped":
-            await this._fileOperations.handleFileDropped(
-              message.uris,
-              () => this._updateSyncStatus()
-            );
-            break;
+          switch (command) {
+            case "fileDropped":
+              await this._fileOperations.handleFileDropped(
+                message.uris,
+                () => this._updateSyncStatus()
+              );
+              break;
 
-          case "getLlmApiKey":
-            this._settingsManager.handleGetLlmApiKey(message, webview);
-            break;
+            case "getLlmApiKey":
+              this._settingsManager.handleGetLlmApiKey(message, webview);
+              break;
 
-          case "createNewFile":
-            await this._fileOperations.handleCreateNewFile(
-              vscode.workspace.workspaceFolders,
-              () => this._updateSyncStatus()
-            );
-            break;
+            case "createNewFile":
+              await this._fileOperations.handleCreateNewFile(
+                vscode.workspace.workspaceFolders,
+                () => this._updateSyncStatus()
+              );
+              break;
 
-          case "saveSettings":
-            await this._settingsManager.handleSaveSettings(message, webview);
-            break;
+            case "saveSettings":
+              await this._settingsManager.handleSaveSettings(message, webview);
+              break;
 
-          case "sendMessage":
-            await this._messageHandler.handleSendMessage(
-              message.text,
-              this._syncedDocument,
-              webview
-            );
-            break;
+            case "sendMessage":
+              await this._messageHandler.handleSendMessage(
+                message.text,
+                this._syncedDocument,
+                webview
+              );
+              break;
 
-          case "editWithAI":
-            await this._messageHandler.handleEditWithAI(message, webview);
-            break;
+            case "editWithAI":
+              await this._messageHandler.handleEditWithAI(message, webview);
+              break;
+
+            case "previewCanvas":
+              await this._messageHandler.handlePreviewCanvas(webview);
+              break;
         }
       },
       undefined,

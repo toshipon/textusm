@@ -1,11 +1,78 @@
 import * as vscode from "vscode";
 import { LlmService } from "../../services/LlmService";
+import { DiagramWebview } from "../../panels/DiagramWebview";
+import { v4 as uuidv4 } from "uuid";
+import * as path from "path";
 
 export class MessageHandler {
   constructor(
     private readonly _llmService: LlmService,
-    private readonly _instructions: string
+    private readonly _instructions: string,
+    private readonly _extensionUri: vscode.Uri
   ) {}
+
+  public async handlePreviewCanvas(webview: vscode.Webview): Promise<void> {
+    try {
+      const editor = vscode.window.activeTextEditor;
+      if (!editor) {
+        throw new Error("アクティブなエディタが見つかりません。");
+      }
+      if (editor.document.languageId !== "markdown") {
+        throw new Error("アクティブなエディタがMarkdownファイルではありません。");
+      }
+
+      const document = editor.document;
+      const content = document.getText();
+      
+      // 新しいWebviewパネルを作成
+      const panel = vscode.window.createWebviewPanel(
+        'diagramPreview',
+        '仮説キャンバス プレビュー',
+        vscode.ViewColumn.Beside,
+        {
+          enableScripts: true,
+          retainContextWhenHidden: true,
+          localResourceRoots: [
+            vscode.Uri.file(path.join(this._extensionUri.fsPath, 'dist')),
+            vscode.Uri.file(path.join(this._extensionUri.fsPath, 'js')),
+            // frontendのElmビルド出力先を指定
+            vscode.Uri.file(path.join(this._extensionUri.fsPath, 'js'))
+          ]
+        }
+      );
+
+      // webview-ui-toolkitのスクリプトURIを取得
+      const toolkitUri = panel.webview.asWebviewUri(
+        vscode.Uri.file(path.join(this._extensionUri.fsPath, 'node_modules', '@vscode', 'webview-ui-toolkit', 'dist', 'toolkit.js'))
+      );
+
+      // メインスクリプトのURIを取得
+      // frontendのElmアプリケーションのスクリプトを読み込む
+      // frontendのElmビルド成果物を指定
+      const scriptUri = panel.webview.asWebviewUri(
+        vscode.Uri.file(path.join(this._extensionUri.fsPath, 'js', 'elm.js'))
+      );
+
+      console.log('Loading Elm script from:', scriptUri.toString());
+
+      // DiagramWebviewを使用してプレビューを表示
+      // DiagramTypeの指定: "hyp" for HypothesisCanvas
+      panel.webview.html = DiagramWebview.generateWebviewContent(
+        panel,
+        scriptUri,
+        content,
+        'hyp',
+        DiagramWebview.getConfig()
+      );
+
+    } catch (error: any) {
+      console.error("Error showing preview:", error);
+      webview.postMessage({
+        command: "showError",
+        text: error.message,
+      });
+    }
+  }
 
   public async handleEditWithAI(
     message: any,

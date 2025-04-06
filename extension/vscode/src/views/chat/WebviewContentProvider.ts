@@ -69,13 +69,16 @@ export class WebviewContentProvider {
               <p>Hypothesis Canvas Chat へようこそ！ 使用するLLMを選択し、APIキーを入力して開始してください。</p>
             </div>
           
-            <div id="sync-info">
-              <span id="sync-file">ファイルが選択されていません</span>
-              <vscode-button id="new-file-button" appearance="secondary" style="display: none;">新規ファイル作成</vscode-button>
-            </div>
-            <div id="input-area">
-              <vscode-text-area id="message-input" placeholder="Type your message..." resize="vertical" rows="1"></vscode-text-area>
-              <vscode-button id="send-button" appearance="primary">Send</vscode-button>
+             <div id="sync-info">
+               <span id="sync-file">ファイルが選択されていません</span>
+               <vscode-button id="new-file-button" appearance="secondary" style="display: none;">新規ファイル作成</vscode-button>
+             </div>
+             <div id="input-area">
+               <vscode-text-area id="message-input" placeholder="Type your message..." resize="vertical" rows="1"></vscode-text-area>
+               <div class="button-container">
+                 <vscode-button id="send-button" appearance="primary">Send</vscode-button>
+                 <vscode-button id="preview-button" appearance="secondary">プレビュー</vscode-button>
+               </div>
             </div>
           </div>
 
@@ -189,9 +192,13 @@ export class WebviewContentProvider {
         }
       });
 
-      document.getElementById('new-file-button').addEventListener('click', () => {
-        vscode.postMessage({ command: 'createNewFile' });
-      });
+       document.getElementById('new-file-button').addEventListener('click', () => {
+         vscode.postMessage({ command: 'createNewFile' });
+       });
+
+       document.getElementById('preview-button').addEventListener('click', () => {
+         vscode.postMessage({ command: 'previewCanvas' });
+       });
 
       llmSelector.addEventListener('change', () => {
         vscode.postMessage({ 
@@ -335,22 +342,23 @@ export class WebviewContentProvider {
             const syncFileElement = document.getElementById('sync-file');
             const newFileButton = document.getElementById('new-file-button');
             
-            if (message.syncedFile) {
-              const filename = message.syncedFile.split('/').pop();
-              if (syncFileElement) {
-                syncFileElement.textContent = '編集中のファイル: ' + filename;
-              }
-              
-              if (newFileButton) {
-                newFileButton.style.display = message.isMarkdown ? 'none' : 'inline-flex';
-              }
-            } else {
-              if (syncFileElement) {
-                syncFileElement.textContent = 'ファイルが選択されていません';
-              }
-              if (newFileButton) {
-                newFileButton.style.display = 'none';
-              }
+             if (message.syncedFile) {
+               const filename = message.syncedFile.split('/').pop();
+               if (syncFileElement) {
+                 syncFileElement.textContent = '編集中のファイル: ' + filename;
+               }
+               
+               const newFileButton = document.getElementById('new-file-button');
+               if (newFileButton) {
+                 newFileButton.style.display = message.isMarkdown ? 'none' : 'inline-flex';
+               }
+             } else {
+               if (syncFileElement) {
+                 syncFileElement.textContent = 'ファイルが選択されていません';
+               }
+               if (newFileButton) {
+                 newFileButton.style.display = 'none';
+               }
             }
             break;
 
