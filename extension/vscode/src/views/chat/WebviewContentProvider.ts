@@ -17,7 +17,8 @@ export class WebviewContentProvider {
       "toolkit.js",
     ]);
     const stylesUri = getUri(webview, this._extensionUri, ["dist", "webview.css"]);
-    const scriptUri = getUri(webview, this._extensionUri, ["src", "views", "chat", "webviewScript.js"]);
+    // Load the bundled script from the dist directory
+    const scriptUri = getUri(webview, this._extensionUri, ["dist", "webviewScript.js"]);
 
     // Get current configuration
     const config = vscode.workspace.getConfiguration(CONFIG_SECTION);
@@ -118,8 +119,36 @@ export class WebviewContentProvider {
               background-color: var(--vscode-diffEditor-removedTextBackground);
               color: var(--vscode-diffEditor-removedTextColor);
             }
+            
+            /* Styles for character-level diff */
+            .diff-view .diff-content pre { /* Ensure pre formatting */
+              white-space: pre-wrap;
+              word-wrap: break-word;
+              margin: 0; /* Reset default pre margin */
+              font-family: var(--vscode-editor-font-family, monospace); /* Use editor font */
+              font-size: var(--vscode-editor-font-size);
+            }
+            .diff-view .diff-char-added {
+              background-color: var(--vscode-diffEditor-insertedTextBackground);
+              color: var(--vscode-diffEditor-insertedTextColor);
+              text-decoration: underline; /* Optional: Add underline for clarity */
+            }
+            .diff-view .diff-char-removed {
+              background-color: var(--vscode-diffEditor-removedTextBackground);
+              color: var(--vscode-diffEditor-removedTextColor);
+              text-decoration: line-through; /* Use strikethrough for removed chars */
+            }
+            .apply-diff-link {
+              color: var(--vscode-textLink-foreground);
+              text-decoration: none;
+              cursor: pointer;
+              margin-left: 5px; /* Add some space */
+            }
+            .apply-diff-link:hover {
+              text-decoration: underline;
+            }
           </style>
-           <script type="module" nonce="${nonce}" src="${scriptUri}"></script>
+           <script nonce="${nonce}" src="${scriptUri}"></script> 
         </body>
       </html>`;
   }

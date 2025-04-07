@@ -1,0 +1,19 @@
+{
+  "extends": "./tsconfig.json", // Inherit base settings
+  "compilerOptions": {
+    "outDir": "./dist", // Specify output directory for type checking context if needed, but Webpack handles actual output
+    // "rootDir" is removed to avoid enforcing it for the webview build
+    "lib": ["es6", "dom"], // Ensure DOM types are included for web context
+    "module": "esnext", // Use ESNext for module system to align with Webpack's outputModule
+    "moduleResolution": "node" // Ensure Node-style module resolution
+  },
+  "include": [
+    "src/views/chat/webviewScript.js" // Only include the webview script entry point
+    // Add other webview-specific source files if any
+  ],
+  "exclude": [
+    "node_modules",
+    ".vscode-test",
+    "src/**/*.ts" // Exclude backend TypeScript files from this config
+  ]
+}

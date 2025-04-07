@@ -1,13 +1,17 @@
+// Import the diff library
+import * as Diff from 'diff';
+
 console.log('Script starting...', { vscode });
 
 let loadingMessageElement = null;
-let currentDiffData = null;
+let currentDiffData = null; // Store the { originalText, newText } object
 let isApiKeyVisible = false;
 let lastCompositionEndTime = 0;
 
-// DOMの読み込み完了を待つ
-window.addEventListener('load', () => {
-    try {
+// Wait for the DOM content to be fully loaded and parsed
+window.addEventListener('DOMContentLoaded', () => {
+    // Remove the setTimeout wrapper
+        try {
         console.log('Window loaded, checking vscode object:', { vscode });
         
         // 要素の取得と検証を1つの関数にまとめる
@@ -178,7 +182,7 @@ window.addEventListener('load', () => {
             });
         }
 
-        function createDiffView(diffData) {
+        function createDiffView(diffData) { // diffData contains { originalText, newText }
             const { originalText, newText } = diffData;
             const diffContainer = document.createElement('div');
             diffContainer.className = 'diff-view';
@@ -191,54 +195,61 @@ window.addEventListener('load', () => {
             const diffContent = document.createElement('div');
             diffContent.className = 'diff-content';
 
-            const originalLines = originalText.split('\n');
-            const newLines = newText.split('\n');
-
+            // Use Diff.diffChars for detailed character-level diff
+            const diffResult = Diff.diffChars(originalText, newText);
             let diffHtml = '';
-            const maxLines = Math.max(originalLines.length, newLines.length);
 
-            for (let i = 0; i < maxLines; i++) {
-                const originalLine = originalLines[i];
-                const newLine = newLines[i];
-
-                if (i >= originalLines.length && newLine !== undefined) {
-                    diffHtml += '<div class="diff-line-added">+ ' + escapeHtml(newLine) + '</div>';
-                } else if (i >= newLines.length && originalLine !== undefined) {
-                    diffHtml += '<div class="diff-line-removed">- ' + escapeHtml(originalLine) + '</div>';
-                } else if (originalLine !== newLine && originalLine !== undefined && newLine !== undefined) {
-                    diffHtml += '<div class="diff-line-removed">- ' + escapeHtml(originalLine) + '</div>';
-                    diffHtml += '<div class="diff-line-added">+ ' + escapeHtml(newLine) + '</div>';
-                } else if (originalLine !== undefined) {
-                    diffHtml += '<div>  ' + escapeHtml(originalLine) + '</div>';
+            diffResult.forEach((part) => {
+                const escapedValue = escapeHtml(part.value);
+                if (part.added) {
+                    // Wrap added parts in a span with specific class
+                    diffHtml += `<span class="diff-char-added">${escapedValue}</span>`;
+                } else if (part.removed) {
+                    // Wrap removed parts in a span with specific class
+                    diffHtml += `<span class="diff-char-removed">${escapedValue}</span>`;
+                } else {
+                    // Unchanged parts
+                    diffHtml += escapedValue;
                 }
-            }
+            });
 
-            diffContent.innerHTML = diffHtml;
+            // Wrap the generated HTML in a <pre> tag to preserve whitespace and line breaks
+            diffContent.innerHTML = `<pre>${diffHtml}</pre>`; 
             diffContainer.appendChild(diffContent);
 
-            const applyButton = document.createElement('vscode-button');
-            applyButton.textContent = 'Apply Changes';
-            applyButton.appearance = 'secondary';
-            applyButton.style.marginTop = '10px';
-            applyButton.addEventListener('click', (event) => {
-                const button = event.target;
-                button.disabled = true;
-                button.textContent = 'Applying...';
+            const applyLink = document.createElement('a');
+            applyLink.textContent = 'Apply';
+            applyLink.href = '#'; // Prevent page navigation
+            applyLink.className = 'apply-diff-link'; // Add a class for styling
+            applyLink.style.marginTop = '10px';
+            applyLink.style.display = 'inline-block'; // Make margin-top work
+            applyLink.addEventListener('click', (event) => {
+                event.preventDefault(); // Prevent default link behavior
+                const link = event.target;
+                
+                // Visually indicate processing (optional, e.g., change text or style)
+                const originalText = link.textContent;
+                link.textContent = 'Applying...';
+                link.style.pointerEvents = 'none'; // Disable further clicks
+                link.style.opacity = '0.5'; // Dim the link
 
                 vscode.postMessage({
                     command: 'applyDiff',
                     diffData: diffData
                 });
 
+                // Reset link state after a delay or upon receiving confirmation
+                // Using a timeout for now, similar to the button logic
                 setTimeout(() => {
-                    const currentButton = event.target;
-                    if (currentButton.disabled) {
-                        currentButton.disabled = false;
-                        currentButton.textContent = 'Apply Changes';
+                    // Check if the link is still in the 'Applying...' state
+                    if (link.style.pointerEvents === 'none') {
+                         link.textContent = originalText;
+                         link.style.pointerEvents = 'auto';
+                         link.style.opacity = '1';
                     }
-                }, 3000);
+                }, 3000); 
             });
-            diffContainer.appendChild(applyButton);
+            diffContainer.appendChild(applyLink);
 
             return diffContainer;
         }
@@ -274,7 +285,8 @@ window.addEventListener('load', () => {
                     break;
 
                 case 'showDiff':
-                    currentDiffData = { originalText: message.originalText, newText: message.newText };
+                    // Store the received diff data
+                    currentDiffData = { originalText: message.originalText, newText: message.newText }; 
                     const diffView = createDiffView(currentDiffData);
                     const lastMessageContainer = messagesDiv.lastElementChild;
                     if (lastMessageContainer && lastMessageContainer.classList.contains('message-container')) {
@@ -312,6 +324,7 @@ window.addEventListener('load', () => {
 
         console.log('All event listeners initialized successfully');
     } catch (error) {
-        console.error('Error initializing script:', error);
+            console.error('Error initializing script:', error);
     }
+        // This duplicate catch block is removed. The correct one is at line 326.
 });
