@@ -79,7 +79,7 @@ export function formatTextUsm(text: string): string {
     const trimmedLine = line.trim();
 
     // マークダウンコードブロックの開始を検出
-    if (trimmedLine.startsWith('```markdown')) {
+    if (trimmedLine.startsWith('```textusm')) {
       isInsideMarkdown = true;
       continue;
     }

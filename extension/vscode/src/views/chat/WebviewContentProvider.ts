@@ -17,6 +17,7 @@ export class WebviewContentProvider {
       "toolkit.js",
     ]);
     const stylesUri = getUri(webview, this._extensionUri, ["dist", "webview.css"]);
+    const scriptUri = getUri(webview, this._extensionUri, ["src", "views", "chat", "webviewScript.js"]);
 
     // Get current configuration
     const config = vscode.workspace.getConfiguration(CONFIG_SECTION);
@@ -27,9 +28,9 @@ export class WebviewContentProvider {
       <html lang="en">
       <head>
         <meta charset="UTF-8">
-        <meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'nonce-${nonce}'; style-src ${
+        <meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'nonce-${nonce}' 'unsafe-inline' ${
           webview.cspSource
-        } 'unsafe-inline'; font-src ${webview.cspSource};">
+        }; style-src ${webview.cspSource} 'unsafe-inline'; font-src ${webview.cspSource};">
         <meta name="viewport" content="width=device-width, initial-scale=1.0">
         <link rel="stylesheet" href="${stylesUri}">
       </head>
@@ -82,8 +83,9 @@ export class WebviewContentProvider {
             </div>
           </div>
 
-          <script type="module" nonce="${nonce}" src="${toolkitUri}"></script>
-          <style nonce="${nonce}">
+           <script nonce="${nonce}">const vscode = acquireVsCodeApi();</script>
+           <script type="module" nonce="${nonce}" src="${toolkitUri}"></script>
+           <style nonce="${nonce}">
             .drop-target.drag-over {
               border: 2px dashed var(--vscode-button-background);
               background-color: var(--vscode-editor-background);
@@ -117,279 +119,8 @@ export class WebviewContentProvider {
               color: var(--vscode-diffEditor-removedTextColor);
             }
           </style>
-          <script nonce="${nonce}">
-            const vscode = acquireVsCodeApi();
-            ${this.getWebviewScript()}
-          </script>
+           <script type="module" nonce="${nonce}" src="${scriptUri}"></script>
         </body>
       </html>`;
-  }
-
-  private getWebviewScript(): string {
-    return `
-      const sendButton = document.getElementById('send-button');
-      const messageInput = document.getElementById('message-input');
-      const messagesDiv = document.getElementById('messages');
-      const llmSelector = document.getElementById('llm-selector');
-      const apiKeyInput = document.getElementById('api-key');
-      const saveSettingsButton = document.getElementById('save-settings');
-      const statusMessage = document.getElementById('status-message');
-      const toggleApiKeyButton = document.getElementById('toggle-api-key');
-      let loadingMessageElement = null;
-      let isApiKeyVisible = false;
-      let lastCompositionEndTime = 0;
-
-      // ドラッグ&ドロップの実装
-      const chatContainer = document.getElementById('chat-container');
-      
-      chatContainer.addEventListener('dragover', (e) => {
-        e.preventDefault();
-        e.stopPropagation();
-        chatContainer.classList.add('drag-over');
-      });
-
-      chatContainer.addEventListener('dragleave', (e) => {
-        e.preventDefault();
-        e.stopPropagation();
-        chatContainer.classList.remove('drag-over');
-      });
-
-      chatContainer.addEventListener('drop', (e) => {
-        e.preventDefault();
-        e.stopPropagation();
-        chatContainer.classList.remove('drag-over');
-
-        vscode.postMessage({
-          command: 'fileDropped',
-          uris: Array.from(e.dataTransfer.files).map(file => file.path)
-        });
-      });
-
-      // Toggle API key visibility
-      toggleApiKeyButton.addEventListener('click', () => {
-        isApiKeyVisible = !isApiKeyVisible;
-        apiKeyInput.type = isApiKeyVisible ? 'text' : 'password';
-        toggleApiKeyButton.textContent = isApiKeyVisible ? '🔒' : '👁';
-      });
-
-      // Event Listeners
-      sendButton.addEventListener('click', sendMessage);
-      
-      messageInput.addEventListener('compositionend', () => {
-        lastCompositionEndTime = Date.now();
-      });
-
-      messageInput.addEventListener('keydown', (event) => {
-        if (event.key === 'Enter' && !event.shiftKey) {
-          const timeSinceCompositionEnd = Date.now() - lastCompositionEndTime;
-          if (timeSinceCompositionEnd < 100) {
-            return;
-          }
-          if (!event.isComposing) {
-            event.preventDefault();
-            sendMessage();
-          }
-        }
-      });
-
-       document.getElementById('new-file-button').addEventListener('click', () => {
-         vscode.postMessage({ command: 'createNewFile' });
-       });
-
-       document.getElementById('preview-button').addEventListener('click', () => {
-         vscode.postMessage({ command: 'previewCanvas' });
-       });
-
-      llmSelector.addEventListener('change', () => {
-        vscode.postMessage({ 
-          command: 'getLlmApiKey', 
-          llm: llmSelector.value 
-        });
-      });
-
-      saveSettingsButton.addEventListener('click', () => {
-        const selectedLlm = llmSelector.value;
-        const apiKey = apiKeyInput.value;
-        vscode.postMessage({
-          command: 'saveSettings',
-          llm: selectedLlm,
-          apiKey: apiKey
-        });
-      });
-
-      function sendMessage() {
-        const message = messageInput.value;
-        if (message && message.trim() !== '') {
-          const trimmedMessage = message.trim();
-          addMessage("You", trimmedMessage);
-          vscode.postMessage({ command: 'sendMessage', text: trimmedMessage });
-          messageInput.value = '';
-          showLoadingMessage();
-        }
-      }
-
-      function createDiffView(originalText, newText) {
-        const diffContainer = document.createElement('div');
-        diffContainer.className = 'diff-view';
-
-        const diffHeader = document.createElement('div');
-        diffHeader.className = 'diff-header';
-        diffHeader.textContent = 'Proposed Changes:';
-        diffContainer.appendChild(diffHeader);
-
-        const diffContent = document.createElement('div');
-        diffContent.className = 'diff-content';
-
-        // 単純な行ベースの差分表示
-        const originalLines = originalText.split('\\n');
-        const newLines = newText.split('\\n');
-        
-        let diffHtml = '';
-        for (let i = 0; i < Math.max(originalLines.length, newLines.length); i++) {
-          const originalLine = originalLines[i] || '';
-          const newLine = newLines[i] || '';
-          
-          if (originalLine !== newLine) {
-            if (originalLine) {
-              diffHtml += \`<div class="diff-line-removed">- \${originalLine}</div>\`;
-            }
-            if (newLine) {
-              diffHtml += \`<div class="diff-line-added">+ \${newLine}</div>\`;
-            }
-          } else {
-            diffHtml += \`<div>\${originalLine}</div>\`;
-          }
-        }
-        
-        diffContent.innerHTML = diffHtml;
-        diffContainer.appendChild(diffContent);
-        return diffContainer;
-      }
-
-      function addMessage(sender, text, isLLMResponse = false) {
-        removeLoadingMessage();
-        const messageContainer = document.createElement('div');
-        messageContainer.className = 'message-container';
-
-        const p = document.createElement('p');
-        const escapedText = text.replace(/</g, "&lt;").replace(/>/g, "&gt;");
-        p.innerHTML = \`<strong>\${sender}:</strong> \${escapedText}\`;
-        messageContainer.appendChild(p);
-
-        if (isLLMResponse && sender !== 'System' && sender !== 'You') {
-          const buttonContainer = document.createElement('div');
-          buttonContainer.className = 'action-buttons';
-
-          const insertButton = document.createElement('vscode-button');
-          insertButton.textContent = 'Apply Changes';
-          insertButton.appearance = 'secondary';
-            insertButton.addEventListener('click', (event) => {
-              const button = event.target;
-              button.disabled = true;
-              button.textContent = '適用中...';
-              
-              vscode.postMessage({ command: 'editWithAI', text: text });
-              
-              // 3秒後にボタンを元に戻す（エラー時の対応）
-              setTimeout(() => {
-                button.disabled = false;
-                button.textContent = 'Apply Changes';
-              }, 3000);
-            });
-          buttonContainer.appendChild(insertButton);
-          messageContainer.appendChild(buttonContainer);
-        }
-
-        messagesDiv.appendChild(messageContainer);
-        
-        // スムーズスクロールアニメーション
-        messageContainer.scrollIntoView({ 
-          behavior: "smooth", 
-          block: "end",
-          inline: "nearest" 
-        });
-      }
-
-      function showLoadingMessage() {
-        removeLoadingMessage();
-        loadingMessageElement = document.createElement('p');
-        loadingMessageElement.className = 'loading';
-        loadingMessageElement.textContent = 'LLM is thinking...';
-        messagesDiv.appendChild(loadingMessageElement);
-        loadingMessageElement.scrollIntoView({ 
-          behavior: "smooth", 
-          block: "end",
-          inline: "nearest" 
-        });
-      }
-
-      function removeLoadingMessage() {
-        if (loadingMessageElement) {
-          messagesDiv.removeChild(loadingMessageElement);
-          loadingMessageElement = null;
-        }
-      }
-
-      function updateStatus(status, message) {
-        statusMessage.textContent = message;
-        statusMessage.className = status;
-      }
-
-      window.addEventListener('message', event => {
-        const message = event.data;
-        switch (message.command) {
-          case 'updateSyncStatus':
-            const syncFileElement = document.getElementById('sync-file');
-            const newFileButton = document.getElementById('new-file-button');
-            
-             if (message.syncedFile) {
-               const filename = message.syncedFile.split('/').pop();
-               if (syncFileElement) {
-                 syncFileElement.textContent = '編集中のファイル: ' + filename;
-               }
-               
-               const newFileButton = document.getElementById('new-file-button');
-               if (newFileButton) {
-                 newFileButton.style.display = message.isMarkdown ? 'none' : 'inline-flex';
-               }
-             } else {
-               if (syncFileElement) {
-                 syncFileElement.textContent = 'ファイルが選択されていません';
-               }
-               if (newFileButton) {
-                 newFileButton.style.display = 'none';
-               }
-            }
-            break;
-
-          case 'showDiff':
-            const diffView = createDiffView(message.originalText, message.newText);
-            // 最後のメッセージコンテナを探す
-            const lastMessageContainer = messagesDiv.lastElementChild;
-            if (lastMessageContainer && lastMessageContainer.classList.contains('message-container')) {
-              lastMessageContainer.insertBefore(diffView, lastMessageContainer.lastElementChild);
-            }
-            break;
-
-          case 'addMessage':
-            const isLLM = ["Gemini", "Claude", "OpenAI"].includes(message.sender);
-            addMessage(message.sender || "LLM", message.text, isLLM);
-            break;
-
-          case 'showError':
-            removeLoadingMessage();
-            addMessage("System", \`Error: \${message.text}\`, false);
-            break;
-
-          case 'updateStatus':
-            updateStatus(message.status, message.message);
-            break;
-
-          case 'updateApiKey':
-            apiKeyInput.value = message.apiKey || '';
-            break;
-        }
-      });
-    `;
   }
 }

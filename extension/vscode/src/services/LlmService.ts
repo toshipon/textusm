@@ -3,6 +3,7 @@ import {
   GoogleGenerativeAI,
   HarmCategory,
   HarmBlockThreshold,
+  Content, // Content型をインポート
 } from "@google/generative-ai";
 import Anthropic from "@anthropic-ai/sdk";
 import OpenAI from "openai";
@@ -13,11 +14,20 @@ export const CLAUDE_API_KEY_CONFIG = "claudeApiKey";
 export const OPENAI_API_KEY_CONFIG = "openaiApiKey";
 export const SELECTED_LLM_CONFIG = "selectedLlm";
 
-export const GEMINI_MODEL_NAME = "gemini-1.5-flash";
-export const CLAUDE_MODEL_NAME = "claude-3-haiku-20240307";
-export const OPENAI_MODEL_NAME = "gpt-4o-mini";
+export const GEMINI_MODEL_NAME = "gemini-2.5-pro-exp-03-25";
+export const CLAUDE_MODEL_NAME = "claude-3.7-sonnet";
+export const OPENAI_MODEL_NAME = "gpt-4.5-preview";
 
 export type LlmType = "Gemini" | "Claude" | "OpenAI";
+
+// メッセージ履歴の型定義を追加
+export interface ChatMessagePart {
+  text: string;
+}
+export interface ChatMessage {
+  role: "user" | "model"; // Gemini/Claude/OpenAIで共通化できるロール
+  parts: ChatMessagePart[]; // Gemini形式に合わせる (Claude/OpenAIは変換が必要)
+}
 
 export interface LlmClientStatus {
   initialized: boolean;
@@ -97,13 +107,26 @@ export class LlmService {
     };
   }
 
-  public async generateResponse(prompt: string): Promise<string> {
+  public async generateResponse(messages: ChatMessage[]): Promise<string> {
+    if (messages.length === 0) {
+      throw new Error("Cannot generate response with empty messages");
+    }
+    // 最後のメッセージを現在のプロンプトとして扱う (互換性のため & 各APIへの送信)
+    const currentMessage = messages[messages.length - 1];
+    // 履歴を各LLMの形式に変換するために準備
+    const history = messages.slice(0, -1); // 最後のメッセージ（現在のプロンプト）を除く
     try {
       switch (this._selectedLlm) {
         case "Gemini":
           if (!this._genAI) {
             throw new Error("Gemini client not initialized");
           }
+          // Geminiの履歴形式に変換 (Content[])
+          const geminiHistory: Content[] = history.map(msg => ({
+            role: msg.role,
+            // parts を明示的に { text: string }[] にマッピング (SDKのPart[]と互換性があることを期待)
+            parts: msg.parts.map(p => ({ text: p.text }))
+          }));
           const safetySettings = [
             {
               category: HarmCategory.HARM_CATEGORY_HARASSMENT,
@@ -122,23 +145,31 @@ export class LlmService {
               threshold: HarmBlockThreshold.BLOCK_MEDIUM_AND_ABOVE,
             },
           ];
-          const model = this._genAI.getGenerativeModel({
+          const chat = this._genAI.getGenerativeModel({
             model: GEMINI_MODEL_NAME,
             safetySettings,
-          });
-          const result = await model.generateContent(prompt);
+          }).startChat({ history: geminiHistory }); // history を渡す
+          // 現在のメッセージを Part[] 形式で送信
+          const currentParts = currentMessage.parts.map(p => ({ text: p.text }));
+          const result = await chat.sendMessage(currentParts);
           const text = result.response.text();
           // UTF-8でエンコード/デコードして日本語文字を適切に処理
-          return Buffer.from(text).toString('utf-8');
+          return Buffer.from(text).toString("utf-8");
 
         case "Claude":
           if (!this._anthropic) {
             throw new Error("Claude client not initialized");
           }
+          // Claudeのメッセージ形式 (MessageParam[]) に変換
+          const claudeMessages: Anthropic.MessageParam[] = messages.map(msg => ({
+            role: msg.role === 'model' ? 'assistant' : 'user', // 'model' を 'assistant' にマッピング
+            // Claudeは content: string | ContentBlock[] を期待するが、ここでは単純なテキストのみ対応
+            content: msg.parts.map(p => p.text).join('\n')
+          }));
           const claudeResponse = await this._anthropic.messages.create({
             model: CLAUDE_MODEL_NAME,
-            max_tokens: 1024,
-            messages: [{ role: "user", content: prompt }],
+            max_tokens: 1024, // 必要に応じて調整
+            messages: claudeMessages, // 完全なメッセージ履歴を渡す
           });
           if (
             claudeResponse.content &&
@@ -146,7 +177,7 @@ export class LlmService {
             claudeResponse.content[0].type === "text"
           ) {
             const text = claudeResponse.content[0].text;
-            return Buffer.from(text).toString('utf-8');
+            return Buffer.from(text).toString("utf-8");
           }
           throw new Error("Received unexpected response format from Claude");
 
@@ -154,18 +185,25 @@ export class LlmService {
           if (!this._openai) {
             throw new Error("OpenAI client not initialized");
           }
+          // OpenAIのメッセージ形式 (ChatCompletionMessageParam[]) に変換
+          const openaiMessages: OpenAI.Chat.Completions.ChatCompletionMessageParam[] = messages.map(msg => ({
+            role: msg.role === 'model' ? 'assistant' : 'user', // 'model' を 'assistant' にマッピング
+            content: msg.parts.map(p => p.text).join('\n')
+          }));
           const openaiResponse = await this._openai.chat.completions.create({
             model: OPENAI_MODEL_NAME,
-            messages: [{ role: "user", content: prompt }],
+            messages: openaiMessages, // 完全なメッセージ履歴を渡す
           });
           const content = openaiResponse.choices[0]?.message?.content;
           if (!content) {
             throw new Error("Received empty response from OpenAI");
           }
-          return Buffer.from(content).toString('utf-8');
+          return Buffer.from(content).toString("utf-8");
 
         default:
-          throw new Error(`Selected LLM (${this._selectedLlm}) is not supported`);
+          throw new Error(
+            `Selected LLM (${this._selectedLlm}) is not supported`
+          );
       }
     } catch (error: any) {
       throw this.handleError(error);
@@ -177,7 +215,11 @@ export class LlmService {
     userIntent: string
   ): Promise<string> {
     const editPrompt = `以下のMarkdownテキストを編集してください。ユーザーの意図: ${userIntent}\n\n${currentText}`;
-    return this.generateResponse(editPrompt);
+    // editMarkdownText は単一のユーザープロンプトとして扱うため、ChatMessage形式に変換
+    const editMessages: ChatMessage[] = [
+      { role: "user", parts: [{ text: editPrompt }] }
+    ];
+    return this.generateResponse(editMessages);
   }
 
   private handleError(error: any): Error {

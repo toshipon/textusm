@@ -2,3 +2,7 @@
 
 # Reference the project's memory bank for context
 memory_bank: memory-bank/*.md
+
+# Formatting Rules
+# When applying changes using apply_diff, strictly maintain the original file's indentation style.
+# Do not remove or alter existing indentation unless explicitly requested for code refactoring.

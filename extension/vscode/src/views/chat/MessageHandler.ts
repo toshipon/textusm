@@ -1,5 +1,6 @@
 import * as vscode from "vscode";
-import { LlmService } from "../../services/LlmService";
+// 既存のインポート文に ChatMessage を追加
+import { LlmService, ChatMessage } from "../../services/LlmService";
 import { DiagramWebview } from "../../panels/DiagramWebview";
 import { v4 as uuidv4 } from "uuid";
 import * as path from "path";
@@ -162,7 +163,11 @@ ${fileContext}
 
 The user's request is: "${text}". Provide a helpful response to assist them.`;
       
-      const responseText = await this._llmService.generateResponse(basePrompt);
+      // basePrompt を ChatMessage[] 形式に変換
+      const messages: ChatMessage[] = [
+        { role: "user", parts: [{ text: basePrompt }] }
+      ];
+      const responseText = await this._llmService.generateResponse(messages);
       webview.postMessage({
         command: "addMessage",
         sender: this._llmService.selectedLlm,
@@ -176,4 +181,55 @@ The user's request is: "${text}". Provide a helpful response to assist them.`;
       });
     }
   }
+
+  public async handleApplyDiff(
+    message: any,
+    webview: vscode.Webview
+  ): Promise<void> {
+    try {
+      const editor = vscode.window.activeTextEditor;
+      if (!editor) {
+        throw new Error("アクティブなエディタが見つかりません。");
+      }
+
+      const document = editor.document;
+      const diffData = message.diffData;
+
+      if (!diffData || typeof diffData.newText !== 'string') {
+        throw new Error("無効な差分データです。");
+      }
+
+      // ドキュメント全体を新しいテキストで置き換える
+      const fullRange = new vscode.Range(
+        document.positionAt(0),
+        document.positionAt(document.getText().length)
+      );
+
+      await editor.edit(editBuilder => {
+        editBuilder.replace(fullRange, diffData.newText);
+      });
+
+      // 成功メッセージをWebviewに送信 (任意)
+      webview.postMessage({
+        command: "updateStatus",
+        status: "success",
+        message: "変更を適用しました。"
+      });
+
+      // VSCodeの情報メッセージを表示 (任意)
+      vscode.window.showInformationMessage("変更を適用しました。");
+
+    } catch (error: any) {
+      console.error("Error applying diff:", error);
+      webview.postMessage({
+        command: "showError",
+        text: `差分の適用に失敗しました: ${error.message}`,
+      });
+      // VSCodeのエラーメッセージを表示 (任意)
+      vscode.window.showErrorMessage(
+        `差分の適用に失敗しました: ${error.message}`
+      );
+    }
+  }
+
 }

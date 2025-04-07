@@ -75,6 +75,7 @@ export class ChatViewProvider implements vscode.WebviewViewProvider {
         localResourceRoots: [
           vscode.Uri.file(path.join(extensionUri.fsPath, 'dist')),
           vscode.Uri.file(path.join(extensionUri.fsPath, 'node_modules', '@vscode', 'webview-ui-toolkit', 'dist')),
+          vscode.Uri.file(path.join(extensionUri.fsPath, 'src')), // webviewScript.jsへのアクセスを許可
         ],
       }
     );
@@ -101,6 +102,7 @@ export class ChatViewProvider implements vscode.WebviewViewProvider {
       localResourceRoots: [
         vscode.Uri.file(path.join(this._extensionUri.fsPath, 'dist')),
         vscode.Uri.file(path.join(this._extensionUri.fsPath, 'node_modules', '@vscode', 'webview-ui-toolkit', 'dist')),
+        vscode.Uri.file(path.join(this._extensionUri.fsPath, 'src')), // webviewScript.jsへのアクセスを許可
       ],
     };
 
@@ -211,6 +213,10 @@ export class ChatViewProvider implements vscode.WebviewViewProvider {
             case "previewCanvas":
               await this._messageHandler.handlePreviewCanvas(webview);
               break;
+            case "applyDiff":
+              await this._messageHandler.handleApplyDiff(message, webview);
+              break;
+
         }
       },
       undefined,
