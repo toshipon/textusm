@@ -192,30 +192,45 @@ window.addEventListener('DOMContentLoaded', () => {
             diffHeader.textContent = 'Proposed Changes:';
             diffContainer.appendChild(diffHeader);
 
-            const diffContent = document.createElement('div');
-            diffContent.className = 'diff-content';
+            // Use Diff.parsePatch to split the patch into hunks
+            const hunks = Diff.parsePatch(Diff.createPatch('file', originalText, newText, '', '', { context: 3 }));
 
-            // Use Diff.diffChars for detailed character-level diff
-            const diffResult = Diff.diffChars(originalText, newText);
-            let diffHtml = '';
-
-            diffResult.forEach((part) => {
-                const escapedValue = escapeHtml(part.value);
-                if (part.added) {
-                    // Wrap added parts in a span with specific class
-                    diffHtml += `<span class="diff-char-added">${escapedValue}</span>`;
-                } else if (part.removed) {
-                    // Wrap removed parts in a span with specific class
-                    diffHtml += `<span class="diff-char-removed">${escapedValue}</span>`;
-                } else {
-                    // Unchanged parts
-                    diffHtml += escapedValue;
+            hunks.forEach((hunk, index) => {
+                const hunkContainer = document.createElement('div');
+                hunkContainer.className = 'diff-hunk';
+                if (index > 0) {
+                    hunkContainer.style.marginTop = '1em'; // Add space between hunks
                 }
-            });
 
-            // Wrap the generated HTML in a <pre> tag to preserve whitespace and line breaks
-            diffContent.innerHTML = `<pre>${diffHtml}</pre>`; 
-            diffContainer.appendChild(diffContent);
+                const hunkHeader = document.createElement('div');
+                hunkHeader.className = 'diff-hunk-header';
+                // Display hunk header info (e.g., line numbers)
+                hunkHeader.textContent = `@@ -${hunk.oldStart},${hunk.oldLines} +${hunk.newStart},${hunk.newLines} @@`;
+                hunkContainer.appendChild(hunkHeader);
+
+                const diffContent = document.createElement('div');
+                diffContent.className = 'diff-content';
+                let diffHtml = '';
+
+                hunk.lines.forEach(line => {
+                    const escapedLine = escapeHtml(line.substring(1)); // Remove +,-, or space prefix
+                    if (line.startsWith('+')) {
+                        diffHtml += `<span class="diff-line diff-added">+${escapedLine}</span>\n`;
+                    } else if (line.startsWith('-')) {
+                        diffHtml += `<span class="diff-line diff-removed">-${escapedLine}</span>\n`;
+                    } else if (line.startsWith(' ')) { // Context line
+                        diffHtml += `<span class="diff-line diff-context"> ${escapedLine}</span>\n`;
+                    } else if (line.startsWith('\\')) { // No newline at end of file indicator
+                        diffHtml += `<span class="diff-no-newline">${escapeHtml(line)}</span>\n`;
+                    }
+                    // Ignore other lines if any
+                });
+
+                 // Wrap the generated HTML in a <pre> tag
+                diffContent.innerHTML = `<pre>${diffHtml}</pre>`;
+                hunkContainer.appendChild(diffContent);
+                diffContainer.appendChild(hunkContainer); // Add the hunk container to the main diff container
+            });
 
             const applyLink = document.createElement('a');
             applyLink.textContent = 'Apply';
