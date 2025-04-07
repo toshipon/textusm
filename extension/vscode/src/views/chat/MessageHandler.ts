@@ -143,9 +143,11 @@ export class MessageHandler {
   ): Promise<void> {
     try {
       let fileContext = "";
+      let originalTextForDiff = ""; // 差分表示用の元テキスト
       if (document) {
         const fileName = document.fileName.split('/').pop() || '';
         const fileContent = document.getText();
+        originalTextForDiff = fileContent; // 元テキストを保持
         fileContext = `
 Current active file: ${fileName}
 File content:
@@ -161,18 +163,69 @@ ${this._instructions}
 
 ${fileContext}
 
-The user's request is: "${text}". Provide a helpful response to assist them.`;
+The user's request is: "${text}".
+If your response includes modifications to the file content, enclose the *complete modified file content* within [DIFF_START] and [DIFF_END] markers.
+For example:
+This is a regular response part.
+[DIFF_START]
+This is the complete modified content of the file.
+It might be multiple lines.
+[DIFF_END]
+This is another regular response part.
+
+Provide a helpful response to assist them.`;
       
       // basePrompt を ChatMessage[] 形式に変換
       const messages: ChatMessage[] = [
         { role: "user", parts: [{ text: basePrompt }] }
       ];
       const responseText = await this._llmService.generateResponse(messages);
-      webview.postMessage({
-        command: "addMessage",
-        sender: this._llmService.selectedLlm,
-        text: responseText,
-      });
+
+      // レスポンスから差分情報を抽出する試み
+      const diffStartMarker = "[DIFF_START]";
+      const diffEndMarker = "[DIFF_END]";
+      const diffStartIndex = responseText.indexOf(diffStartMarker);
+      const diffEndIndex = responseText.indexOf(diffEndMarker);
+
+      if (document && diffStartIndex !== -1 && diffEndIndex !== -1 && diffStartIndex < diffEndIndex) {
+        // マーカーが見つかり、ドキュメントが存在する場合
+        const newText = responseText.substring(diffStartIndex + diffStartMarker.length, diffEndIndex).trim();
+        const messageBeforeDiff = responseText.substring(0, diffStartIndex).trim();
+        const messageAfterDiff = responseText.substring(diffEndIndex + diffEndMarker.length).trim();
+
+        // 差分前後のメッセージがあれば表示
+        if (messageBeforeDiff) {
+          webview.postMessage({
+            command: "addMessage",
+            sender: this._llmService.selectedLlm,
+            text: messageBeforeDiff,
+          });
+        }
+
+        // 差分を表示
+        webview.postMessage({
+          command: "showDiff",
+          originalText: originalTextForDiff, // 保持しておいた元のファイル内容
+          newText: newText
+        });
+
+         // 差分後のメッセージがあれば表示
+        if (messageAfterDiff) {
+          webview.postMessage({
+            command: "addMessage",
+            sender: this._llmService.selectedLlm,
+            text: messageAfterDiff,
+          });
+        }
+
+      } else {
+        // 差分マーカーがない場合は、通常通りメッセージ全体を表示
+        webview.postMessage({
+          command: "addMessage",
+          sender: this._llmService.selectedLlm,
+          text: responseText,
+        });
+      }
     } catch (error: any) {
       console.error("Error in chat message:", error);
       webview.postMessage({
@@ -205,9 +258,19 @@ The user's request is: "${text}". Provide a helpful response to assist them.`;
         document.positionAt(document.getText().length)
       );
 
-      await editor.edit(editBuilder => {
-        editBuilder.replace(fullRange, diffData.newText);
-      });
+       // newText から ```markdown と ``` を除去 (正規表現を使用)
+       let cleanedText = diffData.newText.trim(); // まず前後の空白を除去
+
+       const codeBlockStartRegex = /^```markdown\s*/; // 先頭の ```markdown とそれに続く空白文字(改行含む)にマッチ
+       const codeBlockEndRegex = /\s*```$/; // 末尾の ``` とその前の空白文字(改行含む)にマッチ
+
+       cleanedText = cleanedText.replace(codeBlockStartRegex, ''); // 先頭のマーカーを除去
+       cleanedText = cleanedText.replace(codeBlockEndRegex, ''); // 末尾のマーカーを除去
+
+       await editor.edit(editBuilder => {
+         // fullRange を使ってドキュメント全体を置換
+         editBuilder.replace(fullRange, cleanedText); 
+       });
 
       // 成功メッセージをWebviewに送信 (任意)
       webview.postMessage({
