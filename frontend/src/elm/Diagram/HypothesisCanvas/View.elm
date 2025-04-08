@@ -81,23 +81,59 @@ view { data, settings, items, property, selectedItem, onEditSelectedItem, onEndE
                 itemHeight =
                     Utils.getCanvasHeight settings items
 
+                -- レイアウト計算用の変数を調整
+                fullWidth : Int
+                fullWidth =
+                    Constants.itemWidth * 4 - Constants.canvasOffset * 3
+
                 halfWidth : Int
                 halfWidth =
                     Constants.itemWidth * 2 - Constants.canvasOffset
-                
+
                 quarterWidth : Int
                 quarterWidth =
                     Constants.itemWidth - Constants.canvasOffset
+
+                rightColX : Int
+                rightColX =
+                    Constants.itemWidth * 3 - Constants.canvasOffset * 2
+
+                -- 全体の高さを計算 (仮に4段とする)
+                totalHeight : Int
+                totalHeight =
+                    itemHeight * 4 - Constants.canvasOffset * 3
+
+                -- 各列のアイテムの高さを計算 (左列: 4項目, 右列: 9項目)
+                leftItemCount : Int
+                leftItemCount = 4
+
+                rightItemCount : Int
+                rightItemCount = 9 -- ビジョン、顕在課題、潜在課題、指標、代替手段、状況、チャネル、傾向、市場規模
+
+                leftItemHeight : Int
+                leftItemHeight =
+                    if leftItemCount > 0 then totalHeight // leftItemCount - Constants.canvasOffset * (leftItemCount - 1) // leftItemCount else 0
+
+                rightItemHeight : Int
+                rightItemHeight =
+                     if rightItemCount > 0 then totalHeight // rightItemCount - Constants.canvasOffset * (rightItemCount - 1) // rightItemCount else 0
+
+
+                -- Y座標計算ヘルパー
+                calculateYPos : Int -> Int -> Int -> Int
+                calculateYPos index itemH baseOffset =
+                    index * (itemH + baseOffset)
+
             in
             Svg.g
                 []
                 [
-                  -- 最上段: 目的・ビジョン
+                  -- 左列 (目的, 実現手段, 優位性, 収益モデル) - 変数名は修正済みなので変更なし
                   Lazy.lazy Canvas.view
                     { settings = settings
                     , property = property
-                    , size = ( halfWidth, itemHeight - Constants.canvasOffset )
-                    , position = ( 0, 0 )
+                    , size = ( quarterWidth, leftItemHeight )
+                    , position = ( 0, calculateYPos 0 leftItemHeight Constants.canvasOffset )
                     , selectedItem = selectedItem
                     , item = purpose
                     , onEditSelectedItem = onEditSelectedItem
@@ -108,22 +144,8 @@ view { data, settings, items, property, selectedItem, onEditSelectedItem, onEndE
                 , Lazy.lazy Canvas.view
                     { settings = settings
                     , property = property
-                    , size = ( halfWidth, itemHeight - Constants.canvasOffset )
-                    , position = ( halfWidth, 0 )
-                    , selectedItem = selectedItem
-                    , item = vision
-                    , onEditSelectedItem = onEditSelectedItem
-                    , onEndEditSelectedItem = onEndEditSelectedItem
-                    , onSelect = onSelect
-                    , dragStart = dragStart
-                    }
-                
-                  -- 中央左側: 実現手段・優位性・指標・提案価値
-                , Lazy.lazy Canvas.view
-                    { settings = settings
-                    , property = property
-                    , size = ( quarterWidth, itemHeight - Constants.canvasOffset )
-                    , position = ( 0, itemHeight - Constants.canvasOffset )
+                    , size = ( quarterWidth, leftItemHeight )
+                    , position = ( 0, calculateYPos 1 leftItemHeight Constants.canvasOffset )
                     , selectedItem = selectedItem
                     , item = means
                     , onEditSelectedItem = onEditSelectedItem
@@ -134,8 +156,8 @@ view { data, settings, items, property, selectedItem, onEditSelectedItem, onEndE
                 , Lazy.lazy Canvas.view
                     { settings = settings
                     , property = property
-                    , size = ( quarterWidth, itemHeight - Constants.canvasOffset )
-                    , position = ( 0, itemHeight * 2 - Constants.canvasOffset * 2 )
+                    , size = ( quarterWidth, leftItemHeight )
+                    , position = ( 0, calculateYPos 2 leftItemHeight Constants.canvasOffset )
                     , selectedItem = selectedItem
                     , item = advantage
                     , onEditSelectedItem = onEditSelectedItem
@@ -146,20 +168,21 @@ view { data, settings, items, property, selectedItem, onEditSelectedItem, onEndE
                 , Lazy.lazy Canvas.view
                     { settings = settings
                     , property = property
-                    , size = ( quarterWidth, itemHeight - Constants.canvasOffset )
-                    , position = ( quarterWidth, itemHeight - Constants.canvasOffset )
+                    , size = ( quarterWidth, leftItemHeight )
+                    , position = ( 0, calculateYPos 3 leftItemHeight Constants.canvasOffset )
                     , selectedItem = selectedItem
-                    , item = metrics
+                    , item = revenueModel
                     , onEditSelectedItem = onEditSelectedItem
                     , onEndEditSelectedItem = onEndEditSelectedItem
                     , onSelect = onSelect
                     , dragStart = dragStart
                     }
+                  -- 中央列: 提案価値 (縦長に) - 変数名は修正済みなので変更なし
                 , Lazy.lazy Canvas.view
                     { settings = settings
                     , property = property
-                    , size = ( quarterWidth, itemHeight - Constants.canvasOffset )
-                    , position = ( quarterWidth, itemHeight * 2 - Constants.canvasOffset * 2 )
+                    , size = ( halfWidth, totalHeight ) -- 幅は半分、高さは全体
+                    , position = ( quarterWidth, 0 ) -- 中央上端から
                     , selectedItem = selectedItem
                     , item = valueProposition
                     , onEditSelectedItem = onEditSelectedItem
@@ -167,13 +190,24 @@ view { data, settings, items, property, selectedItem, onEditSelectedItem, onEndE
                     , onSelect = onSelect
                     , dragStart = dragStart
                     }
-                
-                  -- 中央右側: 顕在課題・潜在課題・代替手段・状況・チャネル・傾向
+                  -- 右列 (ビジョン, 顕在課題, 潜在課題, 指標, 代替手段, 状況, チャネル, 傾向, 市場規模) - 変数名は修正済みなので変更なし
                 , Lazy.lazy Canvas.view
                     { settings = settings
                     , property = property
-                    , size = ( quarterWidth, itemHeight - Constants.canvasOffset )
-                    , position = ( halfWidth, itemHeight - Constants.canvasOffset )
+                    , size = ( quarterWidth, rightItemHeight )
+                    , position = ( rightColX, calculateYPos 0 rightItemHeight Constants.canvasOffset )
+                    , selectedItem = selectedItem
+                    , item = vision
+                    , onEditSelectedItem = onEditSelectedItem
+                    , onEndEditSelectedItem = onEndEditSelectedItem
+                    , onSelect = onSelect
+                    , dragStart = dragStart
+                    }
+                , Lazy.lazy Canvas.view
+                    { settings = settings
+                    , property = property
+                    , size = ( quarterWidth, rightItemHeight )
+                    , position = ( rightColX, calculateYPos 1 rightItemHeight Constants.canvasOffset )
                     , selectedItem = selectedItem
                     , item = obviousProblem
                     , onEditSelectedItem = onEditSelectedItem
@@ -184,8 +218,8 @@ view { data, settings, items, property, selectedItem, onEditSelectedItem, onEndE
                 , Lazy.lazy Canvas.view
                     { settings = settings
                     , property = property
-                    , size = ( quarterWidth, itemHeight - Constants.canvasOffset )
-                    , position = ( halfWidth, itemHeight * 2 - Constants.canvasOffset * 2 )
+                    , size = ( quarterWidth, rightItemHeight )
+                    , position = ( rightColX, calculateYPos 2 rightItemHeight Constants.canvasOffset )
                     , selectedItem = selectedItem
                     , item = latentProblem
                     , onEditSelectedItem = onEditSelectedItem
@@ -196,8 +230,20 @@ view { data, settings, items, property, selectedItem, onEditSelectedItem, onEndE
                 , Lazy.lazy Canvas.view
                     { settings = settings
                     , property = property
-                    , size = ( quarterWidth, itemHeight // 2 )
-                    , position = ( Constants.itemWidth * 3 - Constants.canvasOffset, itemHeight - Constants.canvasOffset )
+                    , size = ( quarterWidth, rightItemHeight )
+                    , position = ( rightColX, calculateYPos 3 rightItemHeight Constants.canvasOffset )
+                    , selectedItem = selectedItem
+                    , item = metrics
+                    , onEditSelectedItem = onEditSelectedItem
+                    , onEndEditSelectedItem = onEndEditSelectedItem
+                    , onSelect = onSelect
+                    , dragStart = dragStart
+                    }
+                , Lazy.lazy Canvas.view
+                    { settings = settings
+                    , property = property
+                    , size = ( quarterWidth, rightItemHeight )
+                    , position = ( rightColX, calculateYPos 4 rightItemHeight Constants.canvasOffset )
                     , selectedItem = selectedItem
                     , item = alternatives
                     , onEditSelectedItem = onEditSelectedItem
@@ -208,8 +254,8 @@ view { data, settings, items, property, selectedItem, onEditSelectedItem, onEndE
                 , Lazy.lazy Canvas.view
                     { settings = settings
                     , property = property
-                    , size = ( quarterWidth, itemHeight // 2 )
-                    , position = ( Constants.itemWidth * 3 - Constants.canvasOffset, itemHeight + (itemHeight // 2) )
+                    , size = ( quarterWidth, rightItemHeight )
+                    , position = ( rightColX, calculateYPos 5 rightItemHeight Constants.canvasOffset )
                     , selectedItem = selectedItem
                     , item = situation
                     , onEditSelectedItem = onEditSelectedItem
@@ -220,8 +266,8 @@ view { data, settings, items, property, selectedItem, onEditSelectedItem, onEndE
                 , Lazy.lazy Canvas.view
                     { settings = settings
                     , property = property
-                    , size = ( quarterWidth, itemHeight // 2 )
-                    , position = ( Constants.itemWidth * 3 - Constants.canvasOffset, itemHeight * 2 - Constants.canvasOffset * 2 )
+                    , size = ( quarterWidth, rightItemHeight )
+                    , position = ( rightColX, calculateYPos 6 rightItemHeight Constants.canvasOffset )
                     , selectedItem = selectedItem
                     , item = channel
                     , onEditSelectedItem = onEditSelectedItem
@@ -232,8 +278,8 @@ view { data, settings, items, property, selectedItem, onEditSelectedItem, onEndE
                 , Lazy.lazy Canvas.view
                     { settings = settings
                     , property = property
-                    , size = ( quarterWidth, itemHeight // 2 )
-                    , position = ( Constants.itemWidth * 3 - Constants.canvasOffset, (itemHeight * 2) + (itemHeight // 2) - Constants.canvasOffset * 3 )
+                    , size = ( quarterWidth, rightItemHeight )
+                    , position = ( rightColX, calculateYPos 7 rightItemHeight Constants.canvasOffset )
                     , selectedItem = selectedItem
                     , item = trend
                     , onEditSelectedItem = onEditSelectedItem
@@ -241,25 +287,11 @@ view { data, settings, items, property, selectedItem, onEditSelectedItem, onEndE
                     , onSelect = onSelect
                     , dragStart = dragStart
                     }
-                
-                  -- 最下段: 収益モデル・市場規模
                 , Lazy.lazy Canvas.view
                     { settings = settings
                     , property = property
-                    , size = ( halfWidth, itemHeight - Constants.canvasOffset )
-                    , position = ( 0, itemHeight * 3 - Constants.canvasOffset * 3 )
-                    , selectedItem = selectedItem
-                    , item = revenueModel
-                    , onEditSelectedItem = onEditSelectedItem
-                    , onEndEditSelectedItem = onEndEditSelectedItem
-                    , onSelect = onSelect
-                    , dragStart = dragStart
-                    }
-                , Lazy.lazy Canvas.view
-                    { settings = settings
-                    , property = property
-                    , size = ( halfWidth, itemHeight - Constants.canvasOffset )
-                    , position = ( halfWidth, itemHeight * 3 - Constants.canvasOffset * 3 )
+                    , size = ( quarterWidth, rightItemHeight ) -- 市場規模も右列に追加
+                    , position = ( rightColX, calculateYPos 8 rightItemHeight Constants.canvasOffset ) -- 9番目のアイテムとして配置
                     , selectedItem = selectedItem
                     , item = marketSize
                     , onEditSelectedItem = onEditSelectedItem
