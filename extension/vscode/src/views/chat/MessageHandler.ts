@@ -187,44 +187,61 @@ Provide a helpful response to assist them.`;
       const diffStartIndex = responseText.indexOf(diffStartMarker);
       const diffEndIndex = responseText.indexOf(diffEndMarker);
 
-      if (document && diffStartIndex !== -1 && diffEndIndex !== -1 && diffStartIndex < diffEndIndex) {
-        // マーカーが見つかり、ドキュメントが存在する場合
-        const newText = responseText.substring(diffStartIndex + diffStartMarker.length, diffEndIndex).trim();
-        const messageBeforeDiff = responseText.substring(0, diffStartIndex).trim();
-        const messageAfterDiff = responseText.substring(diffEndIndex + diffEndMarker.length).trim();
+      if (document) { // ドキュメントが存在する場合のみ差分処理を試みる
+          console.log("Document exists, attempting diff processing."); // デバッグログ
+          let newText = responseText; // デフォルトでは応答全体を newText とする
+          let messageBeforeDiff = "";
+          let messageAfterDiff = "";
 
-        // 差分前後のメッセージがあれば表示
-        if (messageBeforeDiff) {
+          // マーカーが存在すれば抽出、なければ応答全体を使用
+          if (diffStartIndex !== -1 && diffEndIndex !== -1 && diffStartIndex < diffEndIndex) {
+              newText = responseText.substring(diffStartIndex + diffStartMarker.length, diffEndIndex).trim();
+              messageBeforeDiff = responseText.substring(0, diffStartIndex).trim();
+              messageAfterDiff = responseText.substring(diffEndIndex + diffEndMarker.length).trim();
+              console.log("Diff markers found. Extracted newText."); // デバッグログ
+          } else {
+              console.log("Diff markers not found or invalid. Using full responseText as newText."); // デバッグログ
+              // マーカーがない場合、応答全体が newText となるため、前後のメッセージは空にする
+              messageBeforeDiff = "";
+              messageAfterDiff = "";
+          }
+
+          // 差分前後のメッセージがあれば表示 (マーカーがあった場合のみ)
+          if (messageBeforeDiff) {
+              console.log("Sending message before diff."); // デバッグログ
+              webview.postMessage({
+                  command: "addMessage",
+                  sender: this._llmService.selectedLlm,
+                  text: messageBeforeDiff,
+              });
+          }
+
+          // 常に差分を表示 (newText が応答全体の場合も含む)
+          console.log("Sending showDiff command to webview."); // デバッグログ
           webview.postMessage({
-            command: "addMessage",
-            sender: this._llmService.selectedLlm,
-            text: messageBeforeDiff,
+              command: "showDiff",
+              originalText: originalTextForDiff, // 保持しておいた元のファイル内容
+              newText: newText
           });
-        }
 
-        // 差分を表示
-        webview.postMessage({
-          command: "showDiff",
-          originalText: originalTextForDiff, // 保持しておいた元のファイル内容
-          newText: newText
-        });
-
-         // 差分後のメッセージがあれば表示
-        if (messageAfterDiff) {
-          webview.postMessage({
-            command: "addMessage",
-            sender: this._llmService.selectedLlm,
-            text: messageAfterDiff,
-          });
-        }
+          // 差分後のメッセージがあれば表示 (マーカーがあった場合のみ)
+          if (messageAfterDiff) {
+              console.log("Sending message after diff."); // デバッグログ
+              webview.postMessage({
+                  command: "addMessage",
+                  sender: this._llmService.selectedLlm,
+                  text: messageAfterDiff,
+              });
+          }
 
       } else {
-        // 差分マーカーがない場合は、通常通りメッセージ全体を表示
-        webview.postMessage({
-          command: "addMessage",
-          sender: this._llmService.selectedLlm,
-          text: responseText,
-        });
+          // ドキュメントがない場合は、通常通りメッセージ全体を表示
+          console.log("No active document. Sending full response as addMessage."); // デバッグログ
+          webview.postMessage({
+              command: "addMessage",
+              sender: this._llmService.selectedLlm,
+              text: responseText,
+          });
       }
     } catch (error: any) {
       console.error("Error in chat message:", error);

@@ -183,6 +183,7 @@ window.addEventListener('DOMContentLoaded', () => {
         }
 
         function createDiffView(diffData) { // diffData contains { originalText, newText }
+            console.log('createDiffView called with diffData:', diffData); // Log function entry
             const { originalText, newText } = diffData;
             const diffContainer = document.createElement('div');
             diffContainer.className = 'diff-view';
@@ -192,45 +193,92 @@ window.addEventListener('DOMContentLoaded', () => {
             diffHeader.textContent = 'Proposed Changes:';
             diffContainer.appendChild(diffHeader);
 
-            // Use Diff.parsePatch to split the patch into hunks
-            const hunks = Diff.parsePatch(Diff.createPatch('file', originalText, newText, '', '', { context: 3 }));
+            // Generate the patch with 3 context lines
+            const patch = Diff.createPatch('file', originalText, newText, '', '', { context: 3 });
 
-            hunks.forEach((hunk, index) => {
-                const hunkContainer = document.createElement('div');
-                hunkContainer.className = 'diff-hunk';
-                if (index > 0) {
-                    hunkContainer.style.marginTop = '1em'; // Add space between hunks
-                }
+            // Parse the patch into hunks using the diff library
+            const hunks = Diff.parsePatch(patch);
+            console.log('Parsed hunks:', hunks); // Log the parsed hunks object
 
-                const hunkHeader = document.createElement('div');
-                hunkHeader.className = 'diff-hunk-header';
-                // Display hunk header info (e.g., line numbers)
-                hunkHeader.textContent = `@@ -${hunk.oldStart},${hunk.oldLines} +${hunk.newStart},${hunk.newLines} @@`;
-                hunkContainer.appendChild(hunkHeader);
-
-                const diffContent = document.createElement('div');
-                diffContent.className = 'diff-content';
-                let diffHtml = '';
-
-                hunk.lines.forEach(line => {
-                    const escapedLine = escapeHtml(line.substring(1)); // Remove +,-, or space prefix
-                    if (line.startsWith('+')) {
-                        diffHtml += `<span class="diff-line diff-added">+${escapedLine}</span>\n`;
-                    } else if (line.startsWith('-')) {
-                        diffHtml += `<span class="diff-line diff-removed">-${escapedLine}</span>\n`;
-                    } else if (line.startsWith(' ')) { // Context line
-                        diffHtml += `<span class="diff-line diff-context"> ${escapedLine}</span>\n`;
-                    } else if (line.startsWith('\\')) { // No newline at end of file indicator
-                        diffHtml += `<span class="diff-no-newline">${escapeHtml(line)}</span>\n`;
+            // Check if parsing resulted in valid hunks
+            if (!hunks || hunks.length === 0 || (hunks.length === 1 && hunks[0].lines.length === 0)) {
+                 // Handle cases where there are no changes or parsing fails
+                 const noChangesMessage = document.createElement('p');
+                 noChangesMessage.textContent = 'No changes detected.';
+                 diffContainer.appendChild(noChangesMessage);
+                 // Still add the apply link, maybe the diff lib missed something subtle? Or allow applying "no change"
+            } else {
+                // Process each hunk
+                hunks.forEach((hunk, index) => {
+                    // Create a container for each hunk
+                    const hunkContainer = document.createElement('div');
+                    hunkContainer.className = 'diff-hunk';
+                    if (index > 0) {
+                        hunkContainer.style.marginTop = '1em'; // Add space between hunks
                     }
-                    // Ignore other lines if any
-                });
 
-                 // Wrap the generated HTML in a <pre> tag
-                diffContent.innerHTML = `<pre>${diffHtml}</pre>`;
-                hunkContainer.appendChild(diffContent);
-                diffContainer.appendChild(hunkContainer); // Add the hunk container to the main diff container
-            });
+                    // Create and add the hunk header
+                    const hunkHeader = document.createElement('div');
+                    hunkHeader.className = 'diff-hunk-header';
+                    hunkHeader.textContent = `@@ -${hunk.oldStart},${hunk.oldLines} +${hunk.newStart},${hunk.newLines} @@`;
+                    hunkContainer.appendChild(hunkHeader);
+
+                    // Create a container for the diff content within the hunk
+                    const diffContent = document.createElement('div');
+                    diffContent.className = 'diff-content';
+                    let diffHtml = '';
+
+                    // Process each line within the hunk
+                    hunk.lines.forEach(line => {
+                        console.log(`Processing line: "${line}"`); // Log the original line
+                        // Process only added or removed lines
+                        if (line.startsWith('+') || line.startsWith('-')) {
+                            const lineContent = line.substring(1); // Get content without '+' or '-'
+                            const trimmedLineContent = lineContent.trim(); // Trim whitespace
+                            console.log(`  Content: "${lineContent}", Trimmed: "${trimmedLineContent}"`); // Log content
+
+                            // Define delimiters
+                            const delimiterStart = '```markdown';
+                            const delimiterEnd = '```';
+
+                            let isSkipped = false;
+                            // Compare trimmed content with delimiters
+                            if (trimmedLineContent === delimiterStart) {
+                                console.log(`  Comparing "${trimmedLineContent}" === "${delimiterStart}" -> true. Skipping.`);
+                                isSkipped = true;
+                            } else if (trimmedLineContent === delimiterEnd) {
+                                console.log(`  Comparing "${trimmedLineContent}" === "${delimiterEnd}" -> true. Skipping.`);
+                                isSkipped = true;
+                            } else {
+                                console.log(`  Comparing "${trimmedLineContent}" with delimiters -> false.`);
+                            }
+
+
+                            if (!isSkipped) {
+                                // If not a delimiter, escape and add to HTML
+                                const escapedLine = escapeHtml(line); // Escape the original line with +/-
+                                if (line.startsWith('+')) {
+                                    diffHtml += `<span class="diff-line diff-added">${escapedLine}</span>\n`;
+                                    console.log('    Added line to diffHtml (added).'); // Log addition
+                                } else { // Must start with '-'
+                                    diffHtml += `<span class="diff-line diff-removed">${escapedLine}</span>\n`;
+                                    console.log('    Added line to diffHtml (removed).'); // Log addition
+                                }
+                            }
+                        } else {
+                             console.log('  Skipping: Not an added/removed line.'); // Log skip reason for context/other lines
+                        }
+                        // Implicitly skip context lines (' ') and other lines ('\')
+                    });
+
+                    // Wrap the generated HTML in a <pre> tag and add to hunk container
+                    diffContent.innerHTML = `<pre>${diffHtml}</pre>`;
+                    hunkContainer.appendChild(diffContent);
+
+                    // Add the complete hunk container to the main diff container
+                    diffContainer.appendChild(hunkContainer);
+                });
+            }
 
             const applyLink = document.createElement('a');
             applyLink.textContent = 'Apply';
@@ -243,13 +291,14 @@ window.addEventListener('DOMContentLoaded', () => {
                 const link = event.target;
                 
                 // Visually indicate processing (optional, e.g., change text or style)
-                const originalText = link.textContent;
+                const originalTextContent = link.textContent; // Store original text
                 link.textContent = 'Applying...';
                 link.style.pointerEvents = 'none'; // Disable further clicks
                 link.style.opacity = '0.5'; // Dim the link
 
                 vscode.postMessage({
                     command: 'applyDiff',
+                    // Pass the original diffData, not the generated patch string
                     diffData: diffData
                 });
 
@@ -258,7 +307,7 @@ window.addEventListener('DOMContentLoaded', () => {
                 setTimeout(() => {
                     // Check if the link is still in the 'Applying...' state
                     if (link.style.pointerEvents === 'none') {
-                         link.textContent = originalText;
+                         link.textContent = originalTextContent; // Restore original text
                          link.style.pointerEvents = 'auto';
                          link.style.opacity = '1';
                     }
