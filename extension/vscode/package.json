@@ -95,9 +95,13 @@
   "dependencies": {
     "@anthropic-ai/sdk": "^0.39.0",
     "@google/generative-ai": "^0.24.0",
+    "@types/react": "^19.1.2",
+    "@types/react-dom": "^19.1.2",
     "@vscode/webview-ui-toolkit": "^1.4.0",
     "diff": "^7.0.0",
     "openai": "^4.92.0",
+    "react": "^19.1.0",
+    "react-dom": "^19.1.0",
     "svgo": "^3.3.2",
     "uuid": "^11.1.0"
   },

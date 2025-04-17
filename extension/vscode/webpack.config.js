@@ -14,7 +14,7 @@ const baseConfig = {
     filename: "[name].js", // Output filename based on entry name
   },
   resolve: {
-    extensions: [".ts", ".js", ".css"], // Resolve these extensions
+    extensions: [".ts", ".tsx", ".js", ".jsx", ".css"], // Resolve these extensions
   },
   plugins: [
     // Extract CSS into separate files
@@ -86,32 +86,39 @@ const webviewConfig = merge(baseConfig, {
   name: "webview", // Configuration name
   target: "web", // Target environment is the browser
   entry: {
-    // Define webviewScript as an entry point
+    // Define webviewScript and canvasScript as entry points
     webviewScript: "./src/views/chat/webviewScript.js",
+    canvasScript: "./src/views/canvas/index.tsx",
   },
-   output: {
-     // Output webview script to dist/webviewScript.js
-     filename: "webviewScript.js", // Explicit filename for the webview script bundle
-     libraryTarget: "umd", // Use UMD format for broader compatibility
-     // library: "webviewScript", // Optionally assign to a global variable (if needed)
-   },
-   // experiments: { outputModule: true } is removed as we are not outputting ES modules
+  output: {
+    // Output scripts dynamically based on entry names
+    filename: "[name].js", // dynamic: webviewScript.js, canvasScript.js
+    libraryTarget: "umd", // Use UMD format for broader compatibility
+    // library: "webviewScript", // Optionally assign to a global variable (if needed)
+  },
+  // experiments: { outputModule: true } is removed as we are not outputting ES modules
   module: {
     rules: [
       {
         // Use ts-loader for .js files as well (requires allowJs: true in tsconfig)
-         test: /\.(ts|js)$/, 
-         exclude: /node_modules/,
-         use: [
-           {
-             loader: 'ts-loader',
-             options: {
-               configFile: 'tsconfig.webview.json' // Use the webview-specific tsconfig
-             }
-           }
-         ]
-       },
-      // CSS rule is not needed here as it's handled in extensionConfig
+        test: /\.(ts|js)$/,
+        exclude: /node_modules/,
+        use: [
+          {
+            loader: 'ts-loader',
+            options: {
+              configFile: 'tsconfig.webview.json' // Use the webview-specific tsconfig
+            }
+          }
+        ]
+      },
+      {
+        test: /\.css$/i,
+        use: [
+          MiniCssExtractPlugin.loader,
+          'css-loader'
+        ]
+      }
     ],
   },
   // Webview doesn't need node externals or vscode module
