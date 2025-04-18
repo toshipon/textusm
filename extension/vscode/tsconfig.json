@@ -8,6 +8,8 @@
     "rootDir": "src",
     "strict": true,
     "allowJs": true, // Add this line
+    "esModuleInterop": true,
+    "allowSyntheticDefaultImports": true,
     "jsx": "react"
   },
    "exclude": ["node_modules", ".vscode-test", "dist", "out"], // Exclude build output directories

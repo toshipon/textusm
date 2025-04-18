@@ -2,7 +2,11 @@ import * as vscode from "vscode";
 import * as path from "path";
 import { getUri } from "../../utils/getUri";
 import { getNonce } from "../../utils/getNonce";
-import { CONFIG_SECTION, SELECTED_LLM_CONFIG, LlmType } from "../../services/LlmService";
+import {
+  CONFIG_SECTION,
+  SELECTED_LLM_CONFIG,
+  LlmType,
+} from "../../services/LlmService";
 
 export class WebviewContentProvider {
   constructor(private readonly _extensionUri: vscode.Uri) {}
@@ -16,11 +20,23 @@ export class WebviewContentProvider {
       "dist",
       "toolkit.js",
     ]);
-    const stylesUri = getUri(webview, this._extensionUri, ["dist", "webview.css"]);
-    const canvasStylesUri = getUri(webview, this._extensionUri, ["dist", "canvas.css"]);
+    const stylesUri = getUri(webview, this._extensionUri, [
+      "dist",
+      "webview.css",
+    ]);
+    const canvasStylesUri = getUri(webview, this._extensionUri, [
+      "dist",
+      "canvas.css",
+    ]);
     // Load the bundled script from the dist directory
-    const scriptUri = getUri(webview, this._extensionUri, ["dist", "webviewScript.js"]);
-    const canvasUri = getUri(webview, this._extensionUri, ["dist", "canvasScript.js"]);
+    const scriptUri = getUri(webview, this._extensionUri, [
+      "dist",
+      "webviewScript.js",
+    ]);
+    const canvasUri = getUri(webview, this._extensionUri, [
+      "dist",
+      "canvasScript.js",
+    ]);
 
     // Get current configuration
     const config = vscode.workspace.getConfiguration(CONFIG_SECTION);
@@ -32,8 +48,10 @@ export class WebviewContentProvider {
       <head>
         <meta charset="UTF-8">
         <meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'nonce-${nonce}' 'unsafe-inline' ${
-          webview.cspSource
-        }; style-src ${webview.cspSource} 'unsafe-inline'; font-src ${webview.cspSource};">
+      webview.cspSource
+    }; style-src ${webview.cspSource} 'unsafe-inline'; font-src ${
+      webview.cspSource
+    };">
         <meta name="viewport" content="width=device-width, initial-scale=1.0">
         <link rel="stylesheet" href="${stylesUri}">
         <link rel="stylesheet" href="${canvasStylesUri}">
@@ -58,8 +76,16 @@ export class WebviewContentProvider {
                   <vscode-text-field 
                     type="password" 
                     id="api-key" 
-                    placeholder="${hasApiKey ? '設定済み (変更する場合は入力してください)' : 'API Keyを入力してください'}"
-                    style="${hasApiKey ? 'background-color: var(--vscode-editor-inactiveSelectionBackground);' : ''}">
+                    placeholder="${
+                      hasApiKey
+                        ? "設定済み (変更する場合は入力してください)"
+                        : "API Keyを入力してください"
+                    }"
+                    style="${
+                      hasApiKey
+                        ? "background-color: var(--vscode-editor-inactiveSelectionBackground);"
+                        : ""
+                    }">
                   </vscode-text-field>
                   <button class="toggle-visibility" id="toggle-api-key" title="Toggle API key visibility">
                     👁

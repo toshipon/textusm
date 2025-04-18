@@ -3,7 +3,27 @@
   display: flex;
   flex-direction: column;
   padding: 16px;
+  height: 100%;
+  width: 100%;
+  overflow: auto;
   font-family: var(--vscode-editor-font-family);
+  background-color: var(--vscode-editor-background);
+  color: var(--vscode-editor-foreground);
+}
+
+.canvas-header {
+  margin-bottom: 16px;
+  border-bottom: 1px solid var(--vscode-panelTitle-activeBorder);
+  padding-bottom: 8px;
+}
+
+.canvas-container {
+  flex: 1;
+  overflow: auto;
+  border: 1px solid var(--vscode-panel-border);
+  border-radius: 4px;
+  background: var(--vscode-editor-background);
+  padding: 16px;
 }
 
 .dialog-header {
@@ -35,4 +55,48 @@
 }
 .controls button {
   padding: 4px 8px;
+}
+
+/* SVG スタイル */
+.canvas-cell rect {
+  stroke: var(--vscode-editorBracketMatch-border);
+  fill: var(--vscode-editor-background);
+  stroke-width: 1;
+}
+
+.canvas-cell:hover rect {
+  stroke: var(--vscode-button-hoverBackground);
+  stroke-width: 2;
+  cursor: pointer;
+}
+
+.canvas-cell text {
+  fill: var(--vscode-editor-foreground);
+  font-weight: bold;
+}
+
+.canvas-item {
+  margin: 4px 0;
+}
+
+/* ズーム・パン用のコントロール */
+.canvas-controls {
+  position: absolute;
+  bottom: 16px;
+  right: 16px;
+  display: flex;
+  gap: 8px;
+}
+
+.canvas-controls button {
+  background: var(--vscode-button-background);
+  color: var(--vscode-button-foreground);
+  border: none;
+  padding: 8px;
+  border-radius: 4px;
+  cursor: pointer;
+}
+
+.canvas-controls button:hover {
+  background: var(--vscode-button-hoverBackground);
 }

@@ -14,6 +14,10 @@
       {
         "command": "hypothesis-canvas.chat",
         "title": "Open Hypothesis Canvas Chat"
+      },
+      {
+        "command": "hypothesisCanvas.openCanvas",
+        "title": "Open Hypothesis Canvas"
       }
     ],
     "views": {
@@ -22,6 +26,11 @@
           "type": "webview",
           "id": "hypothesisCanvasChat",
           "name": "Chat"
+        },
+        {
+          "type": "webview",
+          "id": "hypothesisCanvas",
+          "name": "Canvas"
         }
       ]
     },
@@ -78,7 +87,9 @@
   },
   "activationEvents": [
     "onView:hypothesisCanvasChat",
-    "onCommand:hypothesis-canvas.chat"
+    "onCommand:hypothesis-canvas.chat",
+    "onView:hypothesisCanvas",
+    "onCommand:hypothesisCanvas.openCanvas"
   ],
   "main": "./dist/extension.js",
   "scripts": {

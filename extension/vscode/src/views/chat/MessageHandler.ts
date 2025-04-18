@@ -13,66 +13,8 @@ export class MessageHandler {
   ) {}
 
   public async handlePreviewCanvas(webview: vscode.Webview): Promise<void> {
-    try {
-      const editor = vscode.window.activeTextEditor;
-      if (!editor) {
-        throw new Error("アクティブなエディタが見つかりません。");
-      }
-      if (editor.document.languageId !== "markdown") {
-        throw new Error("アクティブなエディタがMarkdownファイルではありません。");
-      }
-
-      const document = editor.document;
-      const content = document.getText();
-      
-      // 新しいWebviewパネルを作成
-      const panel = vscode.window.createWebviewPanel(
-        'diagramPreview',
-        '仮説キャンバス プレビュー',
-        vscode.ViewColumn.Beside,
-        {
-          enableScripts: true,
-          retainContextWhenHidden: true,
-          localResourceRoots: [
-            vscode.Uri.file(path.join(this._extensionUri.fsPath, 'dist')),
-            vscode.Uri.file(path.join(this._extensionUri.fsPath, 'js')),
-            // frontendのElmビルド出力先を指定
-            vscode.Uri.file(path.join(this._extensionUri.fsPath, 'js'))
-          ]
-        }
-      );
-
-      // webview-ui-toolkitのスクリプトURIを取得
-      const toolkitUri = panel.webview.asWebviewUri(
-        vscode.Uri.file(path.join(this._extensionUri.fsPath, 'node_modules', '@vscode', 'webview-ui-toolkit', 'dist', 'toolkit.js'))
-      );
-
-      // メインスクリプトのURIを取得
-      // frontendのElmアプリケーションのスクリプトを読み込む
-      // frontendのElmビルド成果物を指定
-      const scriptUri = panel.webview.asWebviewUri(
-        vscode.Uri.file(path.join(this._extensionUri.fsPath, 'js', 'elm.js'))
-      );
-
-      console.log('Loading Elm script from:', scriptUri.toString());
-
-      // DiagramWebviewを使用してプレビューを表示
-      // DiagramTypeの指定: "hyp" for HypothesisCanvas
-      panel.webview.html = DiagramWebview.generateWebviewContent(
-        panel,
-        scriptUri,
-        content,
-        'hyp',
-        DiagramWebview.getConfig()
-      );
-
-    } catch (error: any) {
-      console.error("Error showing preview:", error);
-      webview.postMessage({
-        command: "showError",
-        text: error.message,
-      });
-    }
+    // Open the React Canvas view instead of the Elm preview
+    await vscode.commands.executeCommand("hypothesisCanvas.openCanvas");
   }
 
   public async handleEditWithAI(
@@ -85,7 +27,9 @@ export class MessageHandler {
         throw new Error("アクティブなエディタが見つかりません。");
       }
       if (editor.document.languageId !== "markdown") {
-        throw new Error("アクティブなエディタがMarkdownファイルではありません。");
+        throw new Error(
+          "アクティブなエディタがMarkdownファイルではありません。"
+        );
       }
 
       const document = editor.document;
@@ -103,7 +47,7 @@ export class MessageHandler {
       // 編集中の状態を表示
       webview.postMessage({
         command: "updateEditStatus",
-        status: "editing"
+        status: "editing",
       });
 
       const editedText = await this._llmService.editMarkdownText(
@@ -115,16 +59,16 @@ export class MessageHandler {
       webview.postMessage({
         command: "showDiff",
         originalText,
-        newText: editedText
+        newText: editedText,
       });
 
       // 編集完了状態を表示
       webview.postMessage({
         command: "updateEditStatus",
-        status: "complete"
+        status: "complete",
       });
 
-      await editor.edit(editBuilder => {
+      await editor.edit((editBuilder) => {
         editBuilder.replace(editRange, editedText);
       });
       vscode.window.showInformationMessage("テキストを編集しました。");
@@ -145,7 +89,7 @@ export class MessageHandler {
       let fileContext = "";
       let originalTextForDiff = ""; // 差分表示用の元テキスト
       if (document) {
-        const fileName = document.fileName.split('/').pop() || '';
+        const fileName = document.fileName.split("/").pop() || "";
         const fileContent = document.getText();
         originalTextForDiff = fileContent; // 元テキストを保持
         fileContext = `
@@ -174,10 +118,10 @@ It might be multiple lines.
 This is another regular response part.
 
 Provide a helpful response to assist them.`;
-      
+
       // basePrompt を ChatMessage[] 形式に変換
       const messages: ChatMessage[] = [
-        { role: "user", parts: [{ text: basePrompt }] }
+        { role: "user", parts: [{ text: basePrompt }] },
       ];
       const responseText = await this._llmService.generateResponse(messages);
 
@@ -187,61 +131,71 @@ Provide a helpful response to assist them.`;
       const diffStartIndex = responseText.indexOf(diffStartMarker);
       const diffEndIndex = responseText.indexOf(diffEndMarker);
 
-      if (document) { // ドキュメントが存在する場合のみ差分処理を試みる
-          console.log("Document exists, attempting diff processing."); // デバッグログ
-          let newText = responseText; // デフォルトでは応答全体を newText とする
-          let messageBeforeDiff = "";
-          let messageAfterDiff = "";
+      if (document) {
+        // ドキュメントが存在する場合のみ差分処理を試みる
+        console.log("Document exists, attempting diff processing."); // デバッグログ
+        let newText = responseText; // デフォルトでは応答全体を newText とする
+        let messageBeforeDiff = "";
+        let messageAfterDiff = "";
 
-          // マーカーが存在すれば抽出、なければ応答全体を使用
-          if (diffStartIndex !== -1 && diffEndIndex !== -1 && diffStartIndex < diffEndIndex) {
-              newText = responseText.substring(diffStartIndex + diffStartMarker.length, diffEndIndex).trim();
-              messageBeforeDiff = responseText.substring(0, diffStartIndex).trim();
-              messageAfterDiff = responseText.substring(diffEndIndex + diffEndMarker.length).trim();
-              console.log("Diff markers found. Extracted newText."); // デバッグログ
-          } else {
-              console.log("Diff markers not found or invalid. Using full responseText as newText."); // デバッグログ
-              // マーカーがない場合、応答全体が newText となるため、前後のメッセージは空にする
-              messageBeforeDiff = "";
-              messageAfterDiff = "";
-          }
+        // マーカーが存在すれば抽出、なければ応答全体を使用
+        if (
+          diffStartIndex !== -1 &&
+          diffEndIndex !== -1 &&
+          diffStartIndex < diffEndIndex
+        ) {
+          newText = responseText
+            .substring(diffStartIndex + diffStartMarker.length, diffEndIndex)
+            .trim();
+          messageBeforeDiff = responseText.substring(0, diffStartIndex).trim();
+          messageAfterDiff = responseText
+            .substring(diffEndIndex + diffEndMarker.length)
+            .trim();
+          console.log("Diff markers found. Extracted newText."); // デバッグログ
+        } else {
+          console.log(
+            "Diff markers not found or invalid. Using full responseText as newText."
+          ); // デバッグログ
+          // マーカーがない場合、応答全体が newText となるため、前後のメッセージは空にする
+          messageBeforeDiff = "";
+          messageAfterDiff = "";
+        }
 
-          // 差分前後のメッセージがあれば表示 (マーカーがあった場合のみ)
-          if (messageBeforeDiff) {
-              console.log("Sending message before diff."); // デバッグログ
-              webview.postMessage({
-                  command: "addMessage",
-                  sender: this._llmService.selectedLlm,
-                  text: messageBeforeDiff,
-              });
-          }
-
-          // 常に差分を表示 (newText が応答全体の場合も含む)
-          console.log("Sending showDiff command to webview."); // デバッグログ
+        // 差分前後のメッセージがあれば表示 (マーカーがあった場合のみ)
+        if (messageBeforeDiff) {
+          console.log("Sending message before diff."); // デバッグログ
           webview.postMessage({
-              command: "showDiff",
-              originalText: originalTextForDiff, // 保持しておいた元のファイル内容
-              newText: newText
+            command: "addMessage",
+            sender: this._llmService.selectedLlm,
+            text: messageBeforeDiff,
           });
+        }
 
-          // 差分後のメッセージがあれば表示 (マーカーがあった場合のみ)
-          if (messageAfterDiff) {
-              console.log("Sending message after diff."); // デバッグログ
-              webview.postMessage({
-                  command: "addMessage",
-                  sender: this._llmService.selectedLlm,
-                  text: messageAfterDiff,
-              });
-          }
+        // 常に差分を表示 (newText が応答全体の場合も含む)
+        console.log("Sending showDiff command to webview."); // デバッグログ
+        webview.postMessage({
+          command: "showDiff",
+          originalText: originalTextForDiff, // 保持しておいた元のファイル内容
+          newText: newText,
+        });
 
+        // 差分後のメッセージがあれば表示 (マーカーがあった場合のみ)
+        if (messageAfterDiff) {
+          console.log("Sending message after diff."); // デバッグログ
+          webview.postMessage({
+            command: "addMessage",
+            sender: this._llmService.selectedLlm,
+            text: messageAfterDiff,
+          });
+        }
       } else {
-          // ドキュメントがない場合は、通常通りメッセージ全体を表示
-          console.log("No active document. Sending full response as addMessage."); // デバッグログ
-          webview.postMessage({
-              command: "addMessage",
-              sender: this._llmService.selectedLlm,
-              text: responseText,
-          });
+        // ドキュメントがない場合は、通常通りメッセージ全体を表示
+        console.log("No active document. Sending full response as addMessage."); // デバッグログ
+        webview.postMessage({
+          command: "addMessage",
+          sender: this._llmService.selectedLlm,
+          text: responseText,
+        });
       }
     } catch (error: any) {
       console.error("Error in chat message:", error);
@@ -265,7 +219,7 @@ Provide a helpful response to assist them.`;
       const document = editor.document;
       const diffData = message.diffData;
 
-      if (!diffData || typeof diffData.newText !== 'string') {
+      if (!diffData || typeof diffData.newText !== "string") {
         throw new Error("無効な差分データです。");
       }
 
@@ -275,30 +229,29 @@ Provide a helpful response to assist them.`;
         document.positionAt(document.getText().length)
       );
 
-       // newText から ```markdown と ``` を除去 (正規表現を使用)
-       let cleanedText = diffData.newText.trim(); // まず前後の空白を除去
+      // newText から ```markdown と ``` を除去 (正規表現を使用)
+      let cleanedText = diffData.newText.trim(); // まず前後の空白を除去
 
-       const codeBlockStartRegex = /^```markdown\s*/; // 先頭の ```markdown とそれに続く空白文字(改行含む)にマッチ
-       const codeBlockEndRegex = /\s*```$/; // 末尾の ``` とその前の空白文字(改行含む)にマッチ
+      const codeBlockStartRegex = /^```markdown\s*/; // 先頭の ```markdown とそれに続く空白文字(改行含む)にマッチ
+      const codeBlockEndRegex = /\s*```$/; // 末尾の ``` とその前の空白文字(改行含む)にマッチ
 
-       cleanedText = cleanedText.replace(codeBlockStartRegex, ''); // 先頭のマーカーを除去
-       cleanedText = cleanedText.replace(codeBlockEndRegex, ''); // 末尾のマーカーを除去
+      cleanedText = cleanedText.replace(codeBlockStartRegex, ""); // 先頭のマーカーを除去
+      cleanedText = cleanedText.replace(codeBlockEndRegex, ""); // 末尾のマーカーを除去
 
-       await editor.edit(editBuilder => {
-         // fullRange を使ってドキュメント全体を置換
-         editBuilder.replace(fullRange, cleanedText); 
-       });
+      await editor.edit((editBuilder) => {
+        // fullRange を使ってドキュメント全体を置換
+        editBuilder.replace(fullRange, cleanedText);
+      });
 
       // 成功メッセージをWebviewに送信 (任意)
       webview.postMessage({
         command: "updateStatus",
         status: "success",
-        message: "変更を適用しました。"
+        message: "変更を適用しました。",
       });
 
       // VSCodeの情報メッセージを表示 (任意)
       vscode.window.showInformationMessage("変更を適用しました。");
-
     } catch (error: any) {
       console.error("Error applying diff:", error);
       webview.postMessage({
@@ -311,5 +264,4 @@ Provide a helpful response to assist them.`;
       );
     }
   }
-
 }

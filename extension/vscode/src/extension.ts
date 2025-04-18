@@ -2,13 +2,13 @@ import * as vscode from "vscode";
 import { registerCommands } from "./commands";
 import { DiagramPanel } from "./panels/DiagramPanel";
 import { ChatViewProvider } from "./views/chat/ChatViewProvider";
+import { CanvasViewProvider } from "./views/canvas/CanvasViewProvider";
 
 export function activate(context: vscode.ExtensionContext) {
   console.log("Activating TextUSM extension");
   registerCommands(context);
 
   // Register Hypothesis Canvas View Provider
-  // Register Chat View Provider
   const chatProvider = new ChatViewProvider(context.extensionUri);
   context.subscriptions.push(
     vscode.window.registerWebviewViewProvider(
@@ -17,13 +17,29 @@ export function activate(context: vscode.ExtensionContext) {
     )
   );
 
+  // Register Canvas View Provider
+  const canvasProvider = new CanvasViewProvider(context.extensionUri);
+  context.subscriptions.push(
+    vscode.window.registerWebviewViewProvider(
+      CanvasViewProvider.viewType,
+      canvasProvider
+    )
+  );
+
   // Register Chat Pop-out Command
   context.subscriptions.push(
-    vscode.commands.registerCommand('hypothesisCanvas.openChat', () => {
+    vscode.commands.registerCommand("hypothesisCanvas.openChat", () => {
       ChatViewProvider.createOrShowPanel(context.extensionUri);
     })
   );
-  
+
+  // Register Canvas Pop-Out Command
+  context.subscriptions.push(
+    vscode.commands.registerCommand("hypothesisCanvas.openCanvas", () => {
+      CanvasViewProvider.createOrShowPanel(context.extensionUri);
+    })
+  );
+
   // エディタの切り替えを監視
   context.subscriptions.push(
     vscode.window.onDidChangeActiveTextEditor((editor) => {
@@ -32,12 +48,12 @@ export function activate(context: vscode.ExtensionContext) {
       }
     })
   );
-  
+
   // 初期エディタがある場合はプレビューパネルを更新
   if (vscode.window.activeTextEditor && DiagramPanel.activePanel) {
     DiagramPanel.activePanel.watchEditor(vscode.window.activeTextEditor);
   }
-  
+
   console.log("TextUSM extension activated successfully");
 }
 export function deactivate() {

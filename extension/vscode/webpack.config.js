@@ -97,28 +97,28 @@ const webviewConfig = merge(baseConfig, {
     // library: "webviewScript", // Optionally assign to a global variable (if needed)
   },
   // experiments: { outputModule: true } is removed as we are not outputting ES modules
+  resolve: {
+    extensions: [".ts", ".tsx", ".js", ".jsx", ".css"],
+  },
   module: {
     rules: [
       {
-        // Use ts-loader for .js files as well (requires allowJs: true in tsconfig)
-        test: /\.(ts|js)$/,
+        // Use ts-loader for .ts/.tsx/.js/.jsx files
+        test: /\.(ts|tsx|js|jsx)$/,
         exclude: /node_modules/,
         use: [
           {
-            loader: 'ts-loader',
+            loader: "ts-loader",
             options: {
-              configFile: 'tsconfig.webview.json' // Use the webview-specific tsconfig
-            }
-          }
-        ]
+              configFile: "tsconfig.webview.json", // Use the webview-specific tsconfig
+            },
+          },
+        ],
       },
       {
         test: /\.css$/i,
-        use: [
-          MiniCssExtractPlugin.loader,
-          'css-loader'
-        ]
-      }
+        use: [MiniCssExtractPlugin.loader, "css-loader"],
+      },
     ],
   },
   // Webview doesn't need node externals or vscode module

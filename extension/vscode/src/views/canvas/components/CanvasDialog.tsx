@@ -1,19 +1,27 @@
 import React from 'react';
 import { useCanvas } from '../hooks/useCanvas';
-import { useCanvasItems } from '../hooks/useCanvasItems';
-import { DialogHeader } from './common/DialogHeader';
-import { ItemList } from './common/ItemList';
-import { Controls } from './common/Controls';
+import HypothesisCanvas from './HypothesisCanvas';
 
 const CanvasDialog: React.FC = () => {
-  const { items } = useCanvas();
-  const { addItem, removeItem } = useCanvasItems();
+  const { hypothesisCanvas } = useCanvas();
+
+  // Canvas データの更新処理は useCanvasItems フックを使って実装
+  const handleEdit = (section: any, content: string) => {
+    console.log(`Editing ${section}:`, content);
+    // 後で dispatch を呼び出す実装に置き換える
+  };
 
   return (
     <div className="canvas-dialog">
-      <DialogHeader title="Hypothesis Canvas" />
-      <ItemList items={items} onRemove={removeItem} />
-      <Controls onAdd={addItem} />
+      <div className="canvas-header">
+        <h2>仮説キャンバス</h2>
+      </div>
+      <div className="canvas-container">
+        <HypothesisCanvas 
+          data={hypothesisCanvas}
+          onEdit={handleEdit}
+        />
+      </div>
     </div>
   );
 };
