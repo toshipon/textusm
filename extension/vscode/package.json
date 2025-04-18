@@ -26,11 +26,6 @@
           "type": "webview",
           "id": "hypothesisCanvasChat",
           "name": "Chat"
-        },
-        {
-          "type": "webview",
-          "id": "hypothesisCanvas",
-          "name": "Canvas"
         }
       ]
     },

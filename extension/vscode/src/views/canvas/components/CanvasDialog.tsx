@@ -1,20 +1,42 @@
-import React from 'react';
+import React, { useState, useEffect } from 'react';
 import { useCanvas } from '../hooks/useCanvas';
+import { useCanvasItems } from '../hooks/useCanvasItems';
 import HypothesisCanvas from './HypothesisCanvas';
 
 const CanvasDialog: React.FC = () => {
   const { hypothesisCanvas } = useCanvas();
+  const { updateSection, loadCanvas } = useCanvasItems();
+  const [filename, setFilename] = useState<string>("仮説キャンバス");
+  
+  // WebViewメッセージを受信するためのハンドラを設定
+  useEffect(() => {
+    // キャンバスデータを受け取るコールバックを登録
+    window.canvasDataCallback = (data) => {
+      console.log('Canvas data received:', data);
+      loadCanvas(data);
+    };
+    
+    // タイトル（ファイル名）を受け取るコールバックを登録
+    window.canvasTitleCallback = (title) => {
+      setFilename(title);
+    };
+    
+    // クリーンアップ
+    return () => {
+      window.canvasDataCallback = undefined;
+      window.canvasTitleCallback = undefined;
+    };
+  }, [loadCanvas]);
 
-  // Canvas データの更新処理は useCanvasItems フックを使って実装
+  // セクション編集ハンドラ
   const handleEdit = (section: any, content: string) => {
-    console.log(`Editing ${section}:`, content);
-    // 後で dispatch を呼び出す実装に置き換える
+    updateSection(section, content);
   };
 
   return (
     <div className="canvas-dialog">
       <div className="canvas-header">
-        <h2>仮説キャンバス</h2>
+        <h2>仮説キャンバス: {filename}</h2>
       </div>
       <div className="canvas-container">
         <HypothesisCanvas 

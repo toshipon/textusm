@@ -2,7 +2,6 @@ import * as vscode from "vscode";
 import { registerCommands } from "./commands";
 import { DiagramPanel } from "./panels/DiagramPanel";
 import { ChatViewProvider } from "./views/chat/ChatViewProvider";
-import { CanvasViewProvider } from "./views/canvas/CanvasViewProvider";
 
 export function activate(context: vscode.ExtensionContext) {
   console.log("Activating TextUSM extension");
@@ -17,15 +16,6 @@ export function activate(context: vscode.ExtensionContext) {
     )
   );
 
-  // Register Canvas View Provider
-  const canvasProvider = new CanvasViewProvider(context.extensionUri);
-  context.subscriptions.push(
-    vscode.window.registerWebviewViewProvider(
-      CanvasViewProvider.viewType,
-      canvasProvider
-    )
-  );
-
   // Register Chat Pop-out Command
   context.subscriptions.push(
     vscode.commands.registerCommand("hypothesisCanvas.openChat", () => {
@@ -36,7 +26,25 @@ export function activate(context: vscode.ExtensionContext) {
   // Register Canvas Pop-Out Command
   context.subscriptions.push(
     vscode.commands.registerCommand("hypothesisCanvas.openCanvas", () => {
-      CanvasViewProvider.createOrShowPanel(context.extensionUri);
+      // Canvas を専用のビューで開く（プレビュー表示のみ）
+      const editor = vscode.window.activeTextEditor;
+      if (!editor || editor.document.languageId !== "markdown") {
+        vscode.window.showErrorMessage(
+          "マークダウンファイルを開いた状態で実行してください"
+        );
+        return;
+      }
+
+      // DiagramPanelを直接使用してキャンバスを表示
+      console.log("Opening DiagramPanel for hypothesis canvas");
+      try {
+        DiagramPanel.createOrShow(context, "hyp");
+      } catch (error) {
+        console.error("Error opening hypothesis canvas:", error);
+        vscode.window.showErrorMessage(
+          `キャンバスの表示に失敗しました: ${error}`
+        );
+      }
     })
   );
 

@@ -24,18 +24,10 @@ export class WebviewContentProvider {
       "dist",
       "webview.css",
     ]);
-    const canvasStylesUri = getUri(webview, this._extensionUri, [
-      "dist",
-      "canvas.css",
-    ]);
     // Load the bundled script from the dist directory
     const scriptUri = getUri(webview, this._extensionUri, [
       "dist",
       "webviewScript.js",
-    ]);
-    const canvasUri = getUri(webview, this._extensionUri, [
-      "dist",
-      "canvasScript.js",
     ]);
 
     // Get current configuration
@@ -54,7 +46,6 @@ export class WebviewContentProvider {
     };">
         <meta name="viewport" content="width=device-width, initial-scale=1.0">
         <link rel="stylesheet" href="${stylesUri}">
-        <link rel="stylesheet" href="${canvasStylesUri}">
       </head>
         <body>
           <div id="chat-container" class="drop-target">
@@ -178,7 +169,6 @@ export class WebviewContentProvider {
             }
           </style>
            <script nonce="${nonce}" src="${scriptUri}"></script>
-           <script nonce="${nonce}" src="${canvasUri}"></script> 
         </body>
       </html>`;
   }

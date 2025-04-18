@@ -18,6 +18,87 @@ export class DiagramWebview {
       textLength: text.length,
     });
 
+    // 仮説キャンバスの場合は React ベースの新しいビューを使用
+    if (diagramType === "hyp") {
+      // スクリプトのパスを元に、dist/canvasScript.js への相対的な参照を作成
+      const scriptUri = vscode.Uri.parse(scriptSrc.toString());
+      const canvasScriptPath = scriptUri.path.replace(
+        "/js/elm.js",
+        "/dist/canvasScript.js"
+      );
+      const canvasScriptUri = panel.webview.asWebviewUri(
+        vscode.Uri.parse(
+          scriptUri.scheme + "://" + scriptUri.authority + canvasScriptPath
+        )
+      );
+
+      // スタイルシート URI を取得
+      const cssPath = scriptUri.path.replace("/js/elm.js", "/dist/canvas.css");
+      const cssUri = panel.webview.asWebviewUri(
+        vscode.Uri.parse(
+          scriptUri.scheme + "://" + scriptUri.authority + cssPath
+        )
+      );
+
+      return `<!DOCTYPE html>
+      <html>
+      <head>
+          <meta charset="UTF-8">
+          <meta name="viewport" content="width=device-width, initial-scale=1.0">
+          <title>仮説キャンバス</title>
+          <meta http-equiv="Content-Security-Policy" content="default-src 'none'; img-src data: ${
+            panel.webview.cspSource
+          }; style-src 'unsafe-inline' ${
+        panel.webview.cspSource
+      }; script-src 'nonce-${nonce}' ${panel.webview.cspSource};">
+          <link rel="stylesheet" href="${cssUri}">
+          <style>
+            body { 
+              margin: 0; 
+              padding: 0; 
+              background-color: ${
+                config.backgroundColor || "var(--vscode-editor-background)"
+              };
+              font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+              color: var(--vscode-editor-foreground);
+              height: 100vh;
+              width: 100vw;
+              overflow: hidden;
+            }
+            #canvas-root {
+              width: 100%;
+              height: 100%;
+            }
+          </style>
+      </head>
+      <body>
+          <div id="canvas-root"></div>
+          
+          <script nonce="${nonce}">
+              console.log('Loading React canvas script from:', '${canvasScriptUri}');
+              // VSCodeのwebviewオブジェクトをグローバル変数として公開
+              const vscode = acquireVsCodeApi();
+              
+              // 初期テキスト内容を設定
+              const initialText = \`${text
+                .replace(/\\/g, "\\\\")
+                .replace(/\`/g, "\\`")}\`;
+              
+              // テキスト内容を保存
+              vscode.setState({ text: initialText });
+
+              // Webviewの読み込み完了時にバックエンドに通知
+              window.addEventListener('load', () => {
+                vscode.postMessage({ command: 'webviewMounted' });
+              });
+          </script>
+          
+          <script nonce="${nonce}" src="${canvasScriptUri}"></script>
+      </body>
+      </html>`;
+    }
+
+    // 他のダイアグラムタイプの場合は既存のElmベースのビューを使用
     return `<!DOCTYPE html>
     <html>
     <head>
@@ -219,21 +300,43 @@ export class DiagramWebview {
 
   static getConfig(): DiagramConfig {
     return {
-      fontName: vscode.workspace.getConfiguration().get("textusm.fontName") || "",
-      backgroundColor: vscode.workspace.getConfiguration().get("textusm.backgroundColor") || "",
-      activityColor: vscode.workspace.getConfiguration().get("textusm.activity.color") || "",
-      activityBackground: vscode.workspace.getConfiguration().get("textusm.activity.backgroundColor") || "",
-      taskColor: vscode.workspace.getConfiguration().get("textusm.task.color") || "",
-      taskBackground: vscode.workspace.getConfiguration().get("textusm.task.backgroundColor") || "",
-      storyColor: vscode.workspace.getConfiguration().get("textusm.story.color") || "",
-      storyBackground: vscode.workspace.getConfiguration().get("textusm.story.backgroundColor") || "",
-      labelColor: vscode.workspace.getConfiguration().get("textusm.label.color") || "",
-      textColor: vscode.workspace.getConfiguration().get("textusm.text.color") || "",
-      lineColor: vscode.workspace.getConfiguration().get("textusm.line.color") || "",
-      cardWidth: vscode.workspace.getConfiguration().get("textusm.card.width") || 200,
-      cardHeight: vscode.workspace.getConfiguration().get("textusm.card.height") || 100,
-      toolbar: vscode.workspace.getConfiguration().get("textusm.toolbar") || false,
-      showGrid: vscode.workspace.getConfiguration().get("textusm.showGrid") || false,
+      fontName:
+        vscode.workspace.getConfiguration().get("textusm.fontName") || "",
+      backgroundColor:
+        vscode.workspace.getConfiguration().get("textusm.backgroundColor") ||
+        "",
+      activityColor:
+        vscode.workspace.getConfiguration().get("textusm.activity.color") || "",
+      activityBackground:
+        vscode.workspace
+          .getConfiguration()
+          .get("textusm.activity.backgroundColor") || "",
+      taskColor:
+        vscode.workspace.getConfiguration().get("textusm.task.color") || "",
+      taskBackground:
+        vscode.workspace
+          .getConfiguration()
+          .get("textusm.task.backgroundColor") || "",
+      storyColor:
+        vscode.workspace.getConfiguration().get("textusm.story.color") || "",
+      storyBackground:
+        vscode.workspace
+          .getConfiguration()
+          .get("textusm.story.backgroundColor") || "",
+      labelColor:
+        vscode.workspace.getConfiguration().get("textusm.label.color") || "",
+      textColor:
+        vscode.workspace.getConfiguration().get("textusm.text.color") || "",
+      lineColor:
+        vscode.workspace.getConfiguration().get("textusm.line.color") || "",
+      cardWidth:
+        vscode.workspace.getConfiguration().get("textusm.card.width") || 200,
+      cardHeight:
+        vscode.workspace.getConfiguration().get("textusm.card.height") || 100,
+      toolbar:
+        vscode.workspace.getConfiguration().get("textusm.toolbar") || false,
+      showGrid:
+        vscode.workspace.getConfiguration().get("textusm.showGrid") || false,
     };
   }
 }

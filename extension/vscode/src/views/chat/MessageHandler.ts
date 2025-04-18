@@ -2,6 +2,7 @@ import * as vscode from "vscode";
 // 既存のインポート文に ChatMessage を追加
 import { LlmService, ChatMessage } from "../../services/LlmService";
 import { DiagramWebview } from "../../panels/DiagramWebview";
+import { DiagramPanel } from "../../panels/DiagramPanel";
 import { v4 as uuidv4 } from "uuid";
 import * as path from "path";
 
@@ -13,8 +14,31 @@ export class MessageHandler {
   ) {}
 
   public async handlePreviewCanvas(webview: vscode.Webview): Promise<void> {
-    // Open the React Canvas view instead of the Elm preview
-    await vscode.commands.executeCommand("hypothesisCanvas.openCanvas");
+    try {
+      const editor = vscode.window.activeTextEditor;
+      if (!editor) {
+        throw new Error("アクティブなエディタが見つかりません。");
+      }
+      if (editor.document.languageId !== "markdown") {
+        throw new Error(
+          "アクティブなエディタがMarkdownファイルではありません。"
+        );
+      }
+
+      // キャンバスビューを開く前にアクティブなファイル情報を確認
+      console.log(
+        `Opening canvas with active file: ${editor.document.fileName}`
+      );
+
+      // 拡張機能に登録済みのコマンドを使用する
+      await vscode.commands.executeCommand("hypothesisCanvas.openCanvas");
+    } catch (error: any) {
+      console.error("Error showing preview:", error);
+      webview.postMessage({
+        command: "showError",
+        text: error.message,
+      });
+    }
   }
 
   public async handleEditWithAI(
